@@ -19,10 +19,10 @@ use crate::{
                 TokenResponse,
             },
         },
+        jwt::claims::JwtClaims,
         model::WebAuthnSession,
         traits::{AuthRepository, JwtService},
     },
-    utils::jwt::claims::JwtClaims,
 };
 
 pub struct AuthService<R, J>

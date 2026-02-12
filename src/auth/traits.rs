@@ -6,9 +6,9 @@ use crate::{
     app::AppError,
     auth::{
         dto::response::ServiceHealth,
+        jwt::{AccessTokenClaims, RefreshTokenClaims, TokenPair},
         model::{User, WebAuthnSession},
     },
-    utils::jwt::claims::{AccessTokenClaims, RefreshTokenClaims},
 };
 
 pub trait AuthRepository: Send + Sync {
@@ -57,12 +57,7 @@ pub trait AuthRepository: Send + Sync {
 
 pub trait JwtService: Send + Sync {
     fn check_redis(&self) -> impl Future<Output = ServiceHealth> + Send;
-    fn generate_token_pair(
-        &self,
-        user_id: Uuid,
-        username: &str,
-        role: Option<&str>,
-    ) -> crate::utils::jwt::jwt::TokenPair;
+    fn generate_token_pair(&self, user_id: Uuid, username: &str, role: Option<&str>) -> TokenPair;
     fn validate_refresh(
         &self,
         token: &str,

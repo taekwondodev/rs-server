@@ -9,7 +9,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    app::{error::ErrorResponse, metrics, AppState},
+    app::{error::ErrorResponse, middleware::metrics, AppState},
     auth::{
         dto::{
             request::{BeginRequest, FinishRequest},

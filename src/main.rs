@@ -1,13 +1,13 @@
 use rs_passkey_auth::{
     app::{
-        circuit_breaker::CircuitBreakerConfig,
+        init_tracing,
         router::create_router,
         server::{start_server, ServerConfig},
-        tracing::init_tracing,
         AppState,
     },
     config::{
-        origin::OriginConfig, postgres::DbConfig, redis::RedisConfig, webauthn::WebAuthnConfig,
+        circuit_breaker::CircuitBreakerConfig, origin::OriginConfig, postgres::DbConfig,
+        redis::RedisConfig, webauthn::WebAuthnConfig,
     },
 };
 

@@ -37,7 +37,7 @@ where
     }
 }
 
-pub async fn check_database_health<F, Fut>(health_check_fn: F) -> ServiceHealth
+pub(crate) async fn check_database_health<F, Fut>(health_check_fn: F) -> ServiceHealth
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<(), crate::app::AppError>>,
@@ -45,7 +45,7 @@ where
     perform_health_check("Database", Duration::from_secs(5), health_check_fn).await
 }
 
-pub async fn check_redis_health<F, Fut>(health_check_fn: F) -> ServiceHealth
+pub(crate) async fn check_redis_health<F, Fut>(health_check_fn: F) -> ServiceHealth
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<(), crate::app::AppError>>,

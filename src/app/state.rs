@@ -5,10 +5,9 @@ use redis::aio::ConnectionManager;
 use webauthn_rs::Webauthn;
 
 use crate::{
-    app::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig},
-    auth::{repo::Repository, service::AuthService},
-    config::origin::OriginConfig,
-    utils::{cookie::CookieService, jwt::jwt::Jwt},
+    auth::{jwt::Jwt, repo::Repository, service::AuthService},
+    config::{circuit_breaker::CircuitBreakerConfig, origin::OriginConfig, CircuitBreaker},
+    utils::cookie::CookieService,
 };
 
 pub type Service = AuthService<Repository, Jwt>;

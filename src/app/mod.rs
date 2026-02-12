@@ -1,10 +1,9 @@
-pub mod circuit_breaker;
 pub mod error;
-pub mod metrics;
+pub mod middleware;
 pub mod router;
 pub mod server;
 pub mod state;
-pub mod tracing;
 
 pub use error::AppError;
+pub use middleware::tracing::init_tracing;
 pub use state::AppState;

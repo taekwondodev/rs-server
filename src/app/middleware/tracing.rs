@@ -7,7 +7,7 @@ pub fn init_tracing() {
                 tracing_subscriber::filter::Targets::new()
                     .with_target("tower_http::trace", tracing::Level::INFO)
                     .with_target("rs_passkey_auth", tracing::Level::INFO)
-                    .with_default(tracing::Level::WARN),
+                    .with_default(tracing::Level::INFO),
             ),
         )
         .init();

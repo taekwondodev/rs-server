@@ -6,7 +6,10 @@ use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{app::AppError, auth::traits::JwtService, utils::jwt::jwt::Jwt};
+use crate::{
+    app::AppError,
+    auth::{jwt::Jwt, traits::JwtService},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessTokenClaims {

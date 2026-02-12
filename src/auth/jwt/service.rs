@@ -9,12 +9,16 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::app::circuit_breaker::CircuitBreaker;
 use crate::app::AppError;
 use crate::auth::dto::response::ServiceHealth;
+use crate::auth::jwt::{AccessTokenClaims, RefreshTokenClaims};
 use crate::auth::traits::JwtService;
-use crate::utils::health::check_redis_health;
-use crate::utils::jwt::claims::{AccessTokenClaims, RefreshTokenClaims};
+use crate::config::CircuitBreaker;
+use crate::redis_exists;
+use crate::redis_set;
+use crate::utils::redis::BaseRedisRepository;
+
+use super::queries;
 
 const ACCESS_TOKEN_DURATION: Duration = Duration::from_secs(5 * 60);
 const REFRESH_TOKEN_DURATION: Duration = Duration::from_secs(24 * 60 * 60);
@@ -26,8 +30,7 @@ pub struct TokenPair {
 }
 
 pub struct Jwt {
-    redis_manager: ConnectionManager,
-    circuit_breaker: Arc<CircuitBreaker>,
+    base: BaseRedisRepository,
     access_token_duration: Duration,
     refresh_token_duration: Duration,
     pub access_encoding_key: EncodingKey,
@@ -62,8 +65,7 @@ impl Jwt {
         let refresh_decoding_key = DecodingKey::from_secret(&symmetric_key);
 
         Self {
-            redis_manager: conn_manager,
-            circuit_breaker,
+            base: BaseRedisRepository::new(conn_manager, circuit_breaker),
             access_encoding_key,
             access_decoding_key,
             refresh_encoding_key,
@@ -131,20 +133,7 @@ impl Jwt {
 
 impl JwtService for Jwt {
     async fn check_redis(&self) -> ServiceHealth {
-        let redis_manager = self.redis_manager.clone();
-        let circuit_breaker = self.circuit_breaker.clone();
-
-        check_redis_health(move || async move {
-            circuit_breaker
-                .call(move || async move {
-                    let mut conn = redis_manager.clone();
-                    use redis::AsyncCommands;
-                    let _: String = conn.ping().await?;
-                    Ok(())
-                })
-                .await
-        })
-        .await
+        self.base.check_redis_health().await
     }
 
     fn generate_token_pair(&self, user_id: Uuid, username: &str, role: Option<&str>) -> TokenPair {
@@ -177,33 +166,28 @@ impl JwtService for Jwt {
     }
 
     async fn blacklist(&self, jti: &str, exp: i64) -> Result<(), AppError> {
-        let redis_manager = self.redis_manager.clone();
-        let circuit_breaker = self.circuit_breaker.clone();
-        let redis_key = format!("blacklist:{}", jti);
-
+        let redis_key = queries::blacklist::key(jti);
         let now = Utc::now().timestamp();
         let ttl = if exp - now <= 0 { 1 } else { exp };
 
-        circuit_breaker
-            .call(move || async move {
-                let mut conn = redis_manager.clone();
+        self.base
+            .execute_with_circuit_breaker(move |conn| async move {
+                let mut conn = conn.clone();
                 use redis::AsyncCommands;
-                let () = conn.set_ex(&redis_key, "1", ttl as u64).await?;
+                let _: () = redis_set!({ conn.set_ex(&redis_key, "1", ttl as u64).await })?;
                 Ok(())
             })
             .await
     }
 
     async fn is_blacklisted(&self, jti: &str) -> Result<bool, AppError> {
-        let redis_manager = self.redis_manager.clone();
-        let circuit_breaker = self.circuit_breaker.clone();
-        let redis_key = format!("blacklist:{}", jti);
+        let redis_key = queries::blacklist::key(jti);
 
-        circuit_breaker
-            .call(move || async move {
-                let mut conn = redis_manager.clone();
+        self.base
+            .execute_with_circuit_breaker(move |conn| async move {
+                let mut conn = conn.clone();
                 use redis::AsyncCommands;
-                let exists: bool = conn.exists(&redis_key).await?;
+                let exists: bool = redis_exists!({ conn.exists(&redis_key).await })?;
                 Ok(exists)
             })
             .await

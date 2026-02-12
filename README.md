@@ -83,5 +83,5 @@ Visit http://localhost:8080/swagger-ui for complete interactive documentation wi
 Run the tests locally:
 
 ```bash
-cargo test -- --nocapture
+cargo test
 ```

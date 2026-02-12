@@ -77,7 +77,7 @@ impl CookieService {
         cookie_builder.build()
     }
 
-    fn determine_same_site(is_https: bool, is_local: bool) -> SameSite {
+    pub(crate) fn determine_same_site(is_https: bool, is_local: bool) -> SameSite {
         if is_https {
             SameSite::Strict
         } else if is_local {
@@ -87,7 +87,10 @@ impl CookieService {
         }
     }
 
-    fn determine_cookie_domain(origin_config: &OriginConfig, is_local: bool) -> Option<String> {
+    pub(crate) fn determine_cookie_domain(
+        origin_config: &OriginConfig,
+        is_local: bool,
+    ) -> Option<String> {
         if is_local {
             return None;
         }
@@ -104,7 +107,7 @@ impl CookieService {
         None
     }
 
-    fn are_subdomains_of_same(domain1: &str, domain2: &str) -> bool {
+    pub(crate) fn are_subdomains_of_same(domain1: &str, domain2: &str) -> bool {
         let domain1 = Self::normalize_domain(domain1);
         let domain2 = Self::normalize_domain(domain2);
 
@@ -126,7 +129,7 @@ impl CookieService {
         base1 == base2
     }
 
-    fn get_base_domain(domain1: &str, domain2: &str) -> Option<String> {
+    pub(crate) fn get_base_domain(domain1: &str, domain2: &str) -> Option<String> {
         let domain1 = Self::normalize_domain(domain1);
         let domain2 = Self::normalize_domain(domain2);
 
@@ -145,7 +148,7 @@ impl CookieService {
         None
     }
 
-    fn normalize_domain(domain: &str) -> String {
+    pub(crate) fn normalize_domain(domain: &str) -> String {
         domain.strip_prefix("www.").unwrap_or(domain).to_string()
     }
 }
