@@ -176,9 +176,9 @@ impl RepositoryMetrics for BaseRepository {
         let status = self.db.status();
 
         crate::app::middleware::metrics::update_db_pool_stats(
-            status.size as usize,
-            status.available as usize,
-            status.max_size as usize,
+            status.size,
+            status.available,
+            status.max_size,
         );
     }
 }
