@@ -1,87 +1,157 @@
-# rs-passkey-auth
+# Rust Backend Template
 
-A secure authentication service using WebAuthn passkeys and JWT tokens, built with Rust and Axum.
+A production-ready Rust backend template featuring Type-Driven Design, modern async architecture, and comprehensive observability. Built with Axum, PostgreSQL, and Redis.
+
+## Template Philosophy
+
+This template embodies **Type-Driven Design (TyDD)** principles:
+- Encode business logic into the type system
+- Make invalid states unrepresentable
+- Leverage Rust's ownership model for zero-cost abstractions
+- Prefer compile-time guarantees over runtime checks
 
 ## Features
 
-- **WebAuthn Authentication**: Full support for passwordless passkeys
-- **JWT Tokens**: Secure tokens with Ed25519 cryptography
-- **Circuit Breaker Pattern**: Automatic failure detection and recovery for database and Redis
+### Core Architecture
+- **Feature-Based Organization**: Code organized by business domain, not technical layers
+- **Type-Driven Design**: NewTypes, strong typing, and compile-time safety
+- **Clean Separation**: Handler → Service → Repository pattern with strict boundaries
+- **Async First**: Built on Tokio runtime with Axum web framework
+
+### Resilience & Reliability
+- **Circuit Breaker Pattern**: Automatic failure detection and recovery for external dependencies
 - **Exponential Backoff**: Intelligent retry mechanism for transient failures
-- **RESTful API**: Well-documented endpoints with Swagger UI
-- **PostgreSQL Database**: Robust and reliable storage
-- **Redis Cache**: Efficient session and token blacklist management
-- **Containerization**: Complete setup with Docker and Docker Compose
-- **Configurable CORS**: Support for multi-origin applications
-- **Structured Logging**: Complete operation tracing
-- **Monitoring**: Prometheus metrics for observabilit
+- **Health Checks**: Comprehensive endpoint for monitoring service and dependency health
 
-## Tech Stack
+### Database & Caching
+- **PostgreSQL**: Type-safe queries with prepared statement caching
+- **Redis**: Session management and distributed caching
+- **Query Builders**: Optional dynamic SQL builders for complex operations
+- **Connection Pooling**: Efficient resource management with deadpool
 
-- **Rust** - Programming language
-- **Axum** - Async web framework
-- **WebAuthn-rs** - WebAuthn implementation
-- **JWT** - Secure authentication tokens
-- **PostgreSQL** - Primary database
-- **Redis** - Cache and session management
-- **Docker** - Containerization
-- **Prometheus** - Metrics and monitoring
-- **Swagger UI** - Interactive API documentation
-- **Failsafe** - Circuit breaker and resilience patterns
+### Observability (Day 0)
+- **Structured Tracing**: `tracing` + `tracing-subscriber` for distributed tracing
+- **Prometheus Metrics**: Built-in metrics collection with custom histograms
+- **Request Tracing**: Automatic HTTP request/response logging
+- **Error Context**: Rich error propagation with full context preservation
 
-## Prerequisites
+### Developer Experience
+- **Swagger UI**: Interactive API documentation with OpenAPI 3.0
+- **Type-Safe Configuration**: Environment-based config with validation
+- **Hot Reload Ready**: Fast iteration with cargo-watch
+- **Comprehensive Tests**: Service layer and domain type testing strategy
 
-- Docker and Docker Compose
-- Rust 1.92+ (for local development)
-- Git
+### Security
+- **CORS Configuration**: Flexible cross-origin setup for multiple environments
+- **Input Validation**: Request validation at the type system level
+- **Secure Error Handling**: No information leakage in error responses
+- **Secret Management**: Environment-based secret injection
 
 ## Quick Start
 
-### 1. Clone the repository
+### Prerequisites
 
-```bash
-git clone <repository-url>
-cd rs-passkey-auth
-```
+- **Docker & Docker Compose** (for infrastructure)
+- **Rust 1.75+** (for development)
+- **Git**
 
-### 2. Configure environment variables
+### 1. Configure Environment
 
 ```bash
 cp .env.example .env
+# Edit .env with your settings
 ```
 
-**Edit the `.env` file with your configurations**
+**⚠️ SECURITY WARNING**: The template uses default passwords (`changeme_superuser_password` and `changeme_app_password`) that **MUST** be changed before deploying to any environment.
 
-### 3. Start the services
+### 2. Start Infrastructure
 
 ```bash
 docker compose up -d
 ```
 
+### 3. Change Database Passwords
+
+```bash
+# 1. Connect to the PostgreSQL container as superuser
+docker exec -it server_postgres psql -U postgres -d server_db
+
+# 2. Change the password for the application role
+ALTER ROLE server_app WITH PASSWORD 'your_secure_app_password';
+
+# 3. Exit psql
+\q
+
+# 4. Update your .env file with the new password
+# Edit .env and change:
+POSTGRES_PASSWORD=your_secure_app_password
+
+# 5. Restart the server container to apply the new password
+docker compose restart server
+```
+---
+
 The service will be available at:
 - **API**: http://localhost:8080
 - **Swagger UI**: http://localhost:8080/swagger-ui
 - **Health Check**: http://localhost:8080/healthz
-- **Prometheus metrics**: http://localhost:8080/metrics
+- **Metrics**: http://localhost:8080/metrics
 
-### Complete Documentation
+## Usage Guide
 
-Visit http://localhost:8080/swagger-ui for complete interactive documentation with examples and real-time testing.
+### Feature Flags
 
-## Security
+```toml
+[features]
+default = []
+strict = []  # Enable warnings for template utilities
+```
 
-- **Ed25519 Cryptography**: JWT tokens with secure digital signatures
-- **WebAuthn Standard**: Standards-compliant passwordless authentication
-- **Token Blacklisting**: Secure refresh token invalidation
-- **Configurable CORS**: Cross-origin protection
-- **Input Validation**: Rigorous validation of all inputs
-- **Error Handling**: Secure error handling without information leakage
-- **Circuit Breaker**: Protection against cascading failures
+**Template Mode (default):** No warnings for unused utilities
+**Project Mode:** Set `default = ["strict"]` in `Cargo.toml`
 
 ## Testing
-
-Run the tests locally:
 
 ```bash
 cargo test
 ```
+
+## Monitoring
+
+### Prometheus Metrics
+
+Available at `/metrics`:
+- HTTP request duration histograms
+- Database pool statistics
+- Redis connection health
+- Circuit breaker state
+
+### Health Checks
+
+Available at `/healthz`:
+```json
+{
+  "timestamp": "2024-01-01T12:00:00Z",
+  "checks": {
+    "database": {
+      "status": "healthy",
+      "message": "Database connection successful",
+      "response_time_ms": 5
+    },
+    "redis": {
+      "status": "healthy",
+      "message": "Redis connection successful",
+      "response_time_ms": 2
+    }
+  }
+}
+```
+
+### SonarQube (Optional)
+
+To enable SonarQube analysis:
+
+1. Add GitHub Secrets:
+   - `SONAR_TOKEN`: Your SonarCloud token
+
+The workflow automatically configures project key and organization from your repository name.

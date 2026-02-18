@@ -52,8 +52,8 @@ use crate::{
           (name = "Health", description = "Health check endpoints")
     ),
     info(
-        title = "rs-passkey-auth API",
-        description = "A secure authentication service using WebAuthn passkeys and JWT tokens",
+        title = "server API",
+        description = "A secure service using WebAuthn passkeys and JWT tokens",
         version = "0.1.0",
         license(
             name = "MIT",

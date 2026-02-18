@@ -1,5 +1,5 @@
 ARG RUST_VERSION=1.92.0
-ARG APP_NAME=rs-passkey-auth
+ARG APP_NAME=rs-server
 
 ################################################################################
 FROM rust:${RUST_VERSION}-alpine AS build

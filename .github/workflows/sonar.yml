@@ -1,4 +1,4 @@
-name: Build
+name: SonarCloud Analysis
 on:
   push:
     branches:
@@ -17,3 +17,14 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@1a6d90ebcb0e6a6b1d87e37ba693fe453195ae25
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          with:
+            args: >
+              -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
+              -Dsonar.organization=${{ github.repository_owner }}
+              -Dsonar.projectName=${{ github.event.repository.name }}
+              -Dsonar.projectVersion=${{ github.sha }}
+              -Dsonar.links.homepage=${{ github.event.repository.html_url }}
+              -Dsonar.links.ci=${{ github.event.repository.html_url }}/actions
+              -Dsonar.links.scm=${{ github.event.repository.clone_url }}
+              -Dsonar.links.issue=${{ github.event.repository.html_url }}/issues

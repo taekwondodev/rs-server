@@ -1782,8 +1782,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
-name = "rs-passkey-auth"
-version = "0.4.0"
+name = "rs-server"
+version = "1.0.0"
 dependencies = [
  "axum",
  "axum-extra",
