@@ -4,7 +4,7 @@ use utoipa::ToSchema;
 use crate::{
     app::AppError,
     impl_validated_json_request,
-    utils::validation::{validate_json_credentials, validate_text, validate_username, Validatable},
+    utils::{Validatable, validate_json_credentials, validate_text, validate_username},
 };
 
 #[derive(Debug, Deserialize, ToSchema)]

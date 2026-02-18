@@ -1,4 +1,4 @@
-pub mod base;
+mod base;
 mod metrics;
 
-pub use base::BaseRedisRepository;
+pub(crate) use base::BaseRedisRepository;

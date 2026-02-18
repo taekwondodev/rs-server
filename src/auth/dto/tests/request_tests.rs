@@ -1,7 +1,7 @@
 use crate::{
     app::AppError,
-    auth::dto::request::{BeginRequest, FinishRequest},
-    utils::validation::Validatable,
+    auth::dto::{BeginRequest, FinishRequest},
+    utils::Validatable,
 };
 
 #[test]

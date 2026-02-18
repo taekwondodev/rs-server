@@ -3,7 +3,7 @@ use uuid::Uuid;
 use crate::{
     app::AppError,
     auth::{
-        dto::response::ServiceHealth,
+        dto::ServiceHealth,
         jwt::{AccessTokenClaims, RefreshTokenClaims, TokenPair},
     },
 };

@@ -1,6 +1,5 @@
 use crate::{
-    app::AppError, auth::dto::response::ServiceHealth, config::CircuitBreaker,
-    utils::health::check_redis_health,
+    app::AppError, auth::dto::ServiceHealth, config::CircuitBreaker, utils::check_redis_health,
 };
 use redis::aio::ConnectionManager;
 use std::sync::Arc;

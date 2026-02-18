@@ -3,6 +3,6 @@ mod queries;
 pub mod service;
 pub mod traits;
 
-pub use claims::{AccessTokenClaims, RefreshTokenClaims};
-pub use service::{Jwt, TokenPair};
-pub use traits::JwtService;
+pub(crate) use claims::{AccessTokenClaims, RefreshTokenClaims};
+pub(crate) use service::{Jwt, TokenPair};
+pub(crate) use traits::JwtService;

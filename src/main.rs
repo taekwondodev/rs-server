@@ -1,7 +1,4 @@
-use crate::{
-    app::{AppState, ServerConfig, create_router, init_tracing, start_server},
-    config::{CircuitBreakerConfig, DbConfig, OriginConfig, RedisConfig, WebAuthnConfig},
-};
+use crate::app::{AppConfig, AppState, ServerConfig, create_router, init_tracing, start_server};
 
 mod app;
 mod auth;
@@ -12,25 +9,10 @@ mod utils;
 async fn main() {
     init_tracing();
 
-    let db_config = DbConfig::from_env();
-    let db_pool = db_config.create_pool();
+    let params = AppConfig::from_env().await;
+    let cors_layer = params.origin_config.create_cors_layer();
 
-    let origin_config = OriginConfig::from_env();
-    let webauthn_config = WebAuthnConfig::from_env();
-    let webauthn = webauthn_config.create_webauthn(&origin_config);
-    let cors_layer = origin_config.create_cors_layer();
-
-    let redis_config = RedisConfig::from_env();
-    let manager = redis_config.create_conn_manager().await;
-    let circuit_breaker_config = CircuitBreakerConfig::default();
-
-    let state = AppState::new(
-        webauthn,
-        db_pool,
-        manager,
-        origin_config,
-        circuit_breaker_config,
-    );
+    let state = AppState::new(params);
     let app = create_router(state).layer(cors_layer);
 
     let server_config = ServerConfig::default();

@@ -1,14 +1,9 @@
-use crate::{
-    app::AppError,
-    config::CircuitBreaker,
-    utils::{
-        health::check_database_health,
-        postgres::{metrics::RepositoryMetrics, prepared_cache::PreparedStatementCache},
-    },
-};
+use crate::{app::AppError, config::CircuitBreaker, utils::check_database_health};
 use deadpool_postgres::Pool;
 use std::sync::Arc;
 use tokio_postgres::types::ToSql;
+
+use super::{metrics::RepositoryMetrics, prepared_cache::PreparedStatementCache};
 
 pub struct BaseRepository {
     db: Pool,
@@ -39,7 +34,7 @@ impl BaseRepository {
             .await
     }
 
-    pub async fn check_database_health(&self) -> crate::auth::dto::response::ServiceHealth {
+    pub async fn check_database_health(&self) -> crate::auth::dto::ServiceHealth {
         let db = self.db.clone();
         let circuit_breaker = self.circuit_breaker.clone();
 
@@ -55,6 +50,28 @@ impl BaseRepository {
         .await
     }
 
+    #[cfg_attr(not(feature = "strict"), allow(dead_code))]
+    pub async fn execute_prepared(
+        &self,
+        query: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<tokio_postgres::Row>, AppError> {
+        let client = self.db.get().await?;
+        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
+        Ok(client.query(&stmt, params).await?)
+    }
+
+    #[cfg_attr(not(feature = "strict"), allow(dead_code))]
+    pub async fn execute_prepared_one(
+        &self,
+        query: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<tokio_postgres::Row, AppError> {
+        let client = self.db.get().await?;
+        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
+        Ok(client.query_one(&stmt, params).await?)
+    }
+
     pub async fn execute_prepared_opt(
         &self,
         query: &str,
@@ -64,63 +81,21 @@ impl BaseRepository {
         let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
         Ok(client.query_opt(&stmt, params).await?)
     }
+
+    #[cfg_attr(not(feature = "strict"), allow(dead_code))]
+    pub async fn execute_prepared_raw(
+        &self,
+        query: &str,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<u64, AppError> {
+        let client = self.db.get().await?;
+        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
+        Ok(client.execute(&stmt, params).await?)
+    }
 }
 
 pub trait FromRow: Sized {
     fn from_row(row: &tokio_postgres::Row) -> Result<Self, AppError>;
-}
-
-#[allow(dead_code)]
-pub struct UpdateQueryBuilder {
-    updates: Vec<String>,
-    param_idx: i32,
-}
-
-#[allow(dead_code)]
-impl UpdateQueryBuilder {
-    pub fn new() -> Self {
-        Self {
-            updates: Vec::new(),
-            param_idx: 2, // Start from $2 (assuming $1 is the ID)
-        }
-    }
-
-    pub fn add_field<T>(&mut self, field_name: &str, value: &Option<T>) -> &mut Self {
-        if value.is_some() {
-            self.updates
-                .push(format!("{} = ${}", field_name, self.param_idx));
-            self.param_idx += 1;
-        }
-        self
-    }
-
-    pub fn build(&self, table: &str) -> Option<String> {
-        if self.updates.is_empty() {
-            None
-        } else {
-            Some(format!(
-                "UPDATE {} SET {} WHERE id = $1",
-                table,
-                self.updates.join(", ")
-            ))
-        }
-    }
-
-    pub fn build_returning(&self, table: &str) -> Option<String> {
-        if self.updates.is_empty() {
-            None
-        } else {
-            Some(format!(
-                "UPDATE {} SET {} WHERE id = $1 RETURNING *",
-                table,
-                self.updates.join(", ")
-            ))
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.updates.is_empty()
-    }
 }
 
 impl RepositoryMetrics for BaseRepository {

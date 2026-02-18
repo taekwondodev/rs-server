@@ -9,14 +9,11 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    app::{error::ErrorResponse, middleware::metrics, AppState},
+    app::{AppState, error::ErrorResponse, middleware::metrics},
     auth::{
         dto::{
-            request::{BeginRequest, FinishRequest},
-            response::{
-                BeginResponse, HealthChecks, HealthResponse, HealthStatus, MessageResponse,
-                ServiceHealth, TokenResponse,
-            },
+            BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
+            MessageResponse, ServiceHealth, TokenResponse,
         },
         handler,
     },

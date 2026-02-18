@@ -13,14 +13,10 @@ use crate::{
     app::AppError,
     auth::{
         dto::{
-            request::{BeginRequest, FinishRequest},
-            response::{
-                BeginResponse, HealthChecks, HealthResponse, HealthStatus, MessageResponse,
-                TokenResponse,
-            },
+            BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
+            MessageResponse, TokenResponse,
         },
-        jwt::JwtService,
-        jwt::claims::JwtClaims,
+        jwt::{JwtService, claims::JwtClaims},
         model::WebAuthnSession,
         traits::AuthRepository,
     },

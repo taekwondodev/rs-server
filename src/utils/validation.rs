@@ -1,8 +1,8 @@
 use crate::app::AppError;
 
 use axum::{
-    extract::{FromRequest, Request},
     Json,
+    extract::{FromRequest, Request},
 };
 
 pub trait Validatable {

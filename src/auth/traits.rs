@@ -5,7 +5,7 @@ use webauthn_rs::prelude::Passkey;
 use crate::{
     app::AppError,
     auth::{
-        dto::response::ServiceHealth,
+        dto::ServiceHealth,
         model::{User, WebAuthnSession},
     },
 };

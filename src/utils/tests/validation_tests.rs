@@ -1,4 +1,4 @@
-use crate::{app::AppError, utils::validation::*};
+use crate::{app::AppError, utils::*};
 
 #[test]
 fn test_validate_text_valid() {

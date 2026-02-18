@@ -1,4 +1,4 @@
-use crate::auth::dto::response::{HealthStatus, ServiceHealth};
+use crate::auth::dto::{HealthStatus, ServiceHealth};
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::timeout;

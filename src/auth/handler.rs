@@ -4,10 +4,9 @@ use axum::extract::State;
 use axum_extra::extract::CookieJar;
 
 use crate::{
-    app::{middleware::metrics, AppError, AppState},
+    app::{AppError, AppState, middleware::metrics},
     auth::dto::{
-        request::{BeginRequest, FinishRequest},
-        response::{BeginResponse, HealthResponse, MessageResponse, TokenResponse},
+        BeginRequest, BeginResponse, FinishRequest, HealthResponse, MessageResponse, TokenResponse,
     },
 };
 

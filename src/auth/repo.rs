@@ -7,14 +7,14 @@ use uuid::Uuid;
 use crate::{
     app::AppError,
     auth::{
-        dto::response::ServiceHealth,
+        dto::ServiceHealth,
         model::{User, WebAuthnSession},
         queries,
         traits::AuthRepository,
     },
     config::CircuitBreaker,
     db_delete, db_insert, db_select, db_update,
-    utils::postgres::{BaseRepository, FromRow, RepositoryMetrics},
+    utils::{BaseRepository, FromRow, RepositoryMetrics},
 };
 
 pub struct Repository {

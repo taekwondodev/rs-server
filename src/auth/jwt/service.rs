@@ -10,13 +10,14 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::app::AppError;
-use crate::auth::dto::response::ServiceHealth;
-use crate::auth::jwt::JwtService;
-use crate::auth::jwt::{AccessTokenClaims, RefreshTokenClaims};
+use crate::auth::{
+    dto::ServiceHealth,
+    jwt::{AccessTokenClaims, JwtService, RefreshTokenClaims},
+};
 use crate::config::CircuitBreaker;
 use crate::redis_exists;
 use crate::redis_set;
-use crate::utils::redis::BaseRedisRepository;
+use crate::utils::BaseRedisRepository;
 
 use super::queries;
 
