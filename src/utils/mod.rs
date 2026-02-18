@@ -1,8 +1,8 @@
-pub mod cookie;
-pub mod health;
-pub mod postgres;
-pub mod redis;
-pub mod validation;
+pub(crate) mod cookie;
+pub(crate) mod health;
+pub(crate) mod postgres;
+pub(crate) mod redis;
+pub(crate) mod validation;
 
 #[cfg(test)]
 mod tests;

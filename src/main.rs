@@ -1,13 +1,6 @@
 use crate::{
-    app::{
-        AppState, init_tracing,
-        router::create_router,
-        server::{ServerConfig, start_server},
-    },
-    config::{
-        circuit_breaker::CircuitBreakerConfig, origin::OriginConfig, postgres::DbConfig,
-        redis::RedisConfig, webauthn::WebAuthnConfig,
-    },
+    app::{AppState, ServerConfig, create_router, init_tracing, start_server},
+    config::{CircuitBreakerConfig, DbConfig, OriginConfig, RedisConfig, WebAuthnConfig},
 };
 
 mod app;

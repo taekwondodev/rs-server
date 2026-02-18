@@ -1,7 +1,11 @@
-pub mod circuit_breaker;
-pub mod origin;
-pub mod postgres;
-pub mod redis;
-pub mod webauthn;
+pub(crate) mod circuit_breaker;
+pub(crate) mod origin;
+pub(crate) mod postgres;
+pub(crate) mod redis;
+pub(crate) mod webauthn;
 
-pub use circuit_breaker::CircuitBreaker;
+pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
+pub use origin::OriginConfig;
+pub use postgres::DbConfig;
+pub use redis::RedisConfig;
+pub use webauthn::WebAuthnConfig;

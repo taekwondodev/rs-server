@@ -1,8 +1,8 @@
-pub mod dto;
-pub mod handler;
-pub mod jwt;
-pub mod model;
+pub(crate) mod dto;
+pub(crate) mod handler;
+pub(crate) mod jwt;
+pub(crate) mod model;
 mod queries;
-pub mod repo;
-pub mod service;
-pub mod traits;
+pub(crate) mod repo;
+pub(crate) mod service;
+pub(crate) mod traits;
