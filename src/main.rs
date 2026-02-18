@@ -1,15 +1,19 @@
-use rs_passkey_auth::{
+use crate::{
     app::{
-        init_tracing,
+        AppState, init_tracing,
         router::create_router,
-        server::{start_server, ServerConfig},
-        AppState,
+        server::{ServerConfig, start_server},
     },
     config::{
         circuit_breaker::CircuitBreakerConfig, origin::OriginConfig, postgres::DbConfig,
         redis::RedisConfig, webauthn::WebAuthnConfig,
     },
 };
+
+mod app;
+mod auth;
+mod config;
+mod utils;
 
 #[tokio::main]
 async fn main() {

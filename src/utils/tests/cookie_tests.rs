@@ -126,7 +126,6 @@ fn test_cookie_service_new_https_production() {
 
     assert!(cookie_service.secure);
     assert_eq!(cookie_service.same_site, SameSite::Strict);
-    assert!(!cookie_service.is_local);
     assert_eq!(cookie_service.path, "/auth");
     assert!(cookie_service.http_only);
 }
@@ -138,7 +137,6 @@ fn test_cookie_service_new_http_localhost() {
 
     assert!(!cookie_service.secure);
     assert_eq!(cookie_service.same_site, SameSite::Lax);
-    assert!(cookie_service.is_local);
     assert_eq!(cookie_service.domain, None);
 }
 
@@ -148,7 +146,6 @@ fn test_cookie_service_new_http_127() {
     let cookie_service = CookieService::new(&origin_config);
 
     assert!(!cookie_service.secure);
-    assert!(cookie_service.is_local);
     assert_eq!(cookie_service.domain, None);
 }
 

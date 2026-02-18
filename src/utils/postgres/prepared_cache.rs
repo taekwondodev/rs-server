@@ -68,23 +68,6 @@ impl PreparedStatementCache {
 
         Ok(stmt)
     }
-
-    pub fn clear(&self) -> Result<(), AppError> {
-        let mut cache = self.cache.write().map_err(|_| {
-            AppError::InternalServer("Failed to acquire cache write lock".to_string())
-        })?;
-
-        cache.clear();
-        Ok(())
-    }
-
-    pub fn size(&self) -> Result<usize, AppError> {
-        let cache = self.cache.read().map_err(|_| {
-            AppError::InternalServer("Failed to acquire cache read lock".to_string())
-        })?;
-
-        Ok(cache.len())
-    }
 }
 
 impl Default for PreparedStatementCache {

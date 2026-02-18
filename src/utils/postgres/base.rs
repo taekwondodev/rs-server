@@ -55,38 +55,6 @@ impl BaseRepository {
         .await
     }
 
-    pub async fn get_client(&self) -> Result<deadpool_postgres::Object, AppError> {
-        Ok(self.db.get().await?)
-    }
-
-    pub fn db(&self) -> &Pool {
-        &self.db
-    }
-
-    pub fn circuit_breaker(&self) -> &Arc<CircuitBreaker> {
-        &self.circuit_breaker
-    }
-
-    pub async fn execute_prepared(
-        &self,
-        query: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Vec<tokio_postgres::Row>, AppError> {
-        let client = self.db.get().await?;
-        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
-        Ok(client.query(&stmt, params).await?)
-    }
-
-    pub async fn execute_prepared_one(
-        &self,
-        query: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<tokio_postgres::Row, AppError> {
-        let client = self.db.get().await?;
-        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
-        Ok(client.query_one(&stmt, params).await?)
-    }
-
     pub async fn execute_prepared_opt(
         &self,
         query: &str,
@@ -96,35 +64,19 @@ impl BaseRepository {
         let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
         Ok(client.query_opt(&stmt, params).await?)
     }
-
-    pub async fn execute_prepared_raw(
-        &self,
-        query: &str,
-        params: &[&(dyn ToSql + Sync)],
-    ) -> Result<u64, AppError> {
-        let client = self.db.get().await?;
-        let stmt = self.prepared_cache.get_or_prepare(&client, query).await?;
-        Ok(client.execute(&stmt, params).await?)
-    }
-
-    pub fn cache_size(&self) -> Result<usize, AppError> {
-        self.prepared_cache.size()
-    }
-
-    pub fn clear_cache(&self) -> Result<(), AppError> {
-        self.prepared_cache.clear()
-    }
 }
 
 pub trait FromRow: Sized {
     fn from_row(row: &tokio_postgres::Row) -> Result<Self, AppError>;
 }
 
+#[allow(dead_code)]
 pub struct UpdateQueryBuilder {
     updates: Vec<String>,
     param_idx: i32,
 }
 
+#[allow(dead_code)]
 impl UpdateQueryBuilder {
     pub fn new() -> Self {
         Self {

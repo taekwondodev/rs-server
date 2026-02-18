@@ -51,12 +51,4 @@ impl BaseRedisRepository {
         })
         .await
     }
-
-    pub fn connection(&self) -> &ConnectionManager {
-        &self.connection_manager
-    }
-
-    pub fn circuit_breaker(&self) -> &Arc<CircuitBreaker> {
-        &self.circuit_breaker
-    }
 }

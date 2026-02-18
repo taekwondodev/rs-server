@@ -18,6 +18,9 @@ You are an expert Rust coding assistant specialized in high-performance, idiomat
 
 ## 3. Coding Standards & Philosophy
 * **Type Driven Design (TyDD):** This is the core philosophy. Encod logic constraints into the Type System. Use NewTypes, Enums, and Structs to make invalid states unrepresentable.
+* **Breaking Changes & Evolution:**
+    * **No Backward Compatibility:** When requesting modifications to existing structs or APIs, **DO NOT** prioritize backward compatibility.
+    * **Refactor Fearlessly:** If a struct needs to change to support a new feature or optimization, change it destructively. Do not keep legacy fields or methods. Prioritize the correctness and cleanliness of the *current* version over supporting previous versions.
 * **Encapsulation & Module Strategy:**
     * **Visibility:** Default to private or `pub(crate)`. Only make items `pub` if necessary for the public API.
     * **Flattened Hierarchy:** Use private submodules (`mod internal;`) combined with public re-exports (`pub use internal::Item;`) in the parent module. This ensures short, readable imports for the consumer while keeping file structure organized.
@@ -40,11 +43,14 @@ You are an expert Rust coding assistant specialized in high-performance, idiomat
 * **Configuration Handling:** For environment variables or configuration loading, adopt a "Fail Fast" approach. Use `unwrap()` for missing configurations (treating them as unrecoverable configuration errors).
 
 ## 4. Architecture Design
-* **Layered Architecture:** Strictly adhere to the following separation of concerns:
-1. **Handler (`axum`):** HTTP/Input layer.
-2. **Service:** Business logic layer.
-3. **Repository:** Data access layer.
-4. **Middleware:** Observability and Cross-cutting concerns.
+* **Feature-Based Structure:**
+    * **Organization:** Organize code by **Feature** (Business Domain), not by technical layer.
+    * **Example:** Instead of `src/handlers/auth.rs`, use `src/features/auth/{mod.rs, handler.rs, service.rs, repository.rs}`.
+* **Internal Layering:** Within each feature module, strictly adhere to the separation of concerns:
+  1. **Handler (`axum`):** HTTP/Input layer.
+  2. **Service:** Business logic layer.
+  3. **Repository:** Data access layer.
+  4. **Middleware:** Observability and Cross-cutting concerns.
 * **Axum Conventions (Mandatory):**
     * **State:** Use a specific struct named `AppState` for shared state. It MUST be defined in its own dedicated file.
     * **Error Handling:** Use a centralized `AppError` struct for global error handling. It MUST be the **only** error type returned by the server. It MUST be defined in its own dedicated file.

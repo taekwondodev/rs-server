@@ -16,7 +16,6 @@ pub struct CookieService {
     pub path: String,
     pub http_only: bool,
     pub max_age: Duration,
-    pub is_local: bool,
 }
 
 impl CookieService {
@@ -32,7 +31,6 @@ impl CookieService {
             path: String::from(PATH),
             http_only: HTTP_ONLY,
             max_age: MAX_AGE,
-            is_local,
         }
     }
 

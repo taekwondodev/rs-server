@@ -54,7 +54,3 @@ macro_rules! redis_delete {
         $crate::track_redis_operation!("delete", $body)
     };
 }
-
-pub trait RedisMetrics {
-    fn update_redis_metrics(&self);
-}

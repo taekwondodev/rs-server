@@ -1,9 +1,21 @@
 use failsafe::{
-    backoff, failure_policy, CircuitBreaker as FailsafeCircuitBreaker, Config, StateMachine,
+    CircuitBreaker as FailsafeCircuitBreaker, Config, StateMachine, backoff, failure_policy,
 };
 use std::{sync::Arc, time::Duration};
 
-use crate::app::AppError;
+use crate::app::{AppError, middleware::metrics::update_circuit_breaker_state};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BreakerState {
+    Closed = 0,
+    Open = 1,
+}
+
+impl BreakerState {
+    fn as_metric_value(self) -> u8 {
+        self as u8
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
@@ -30,7 +42,7 @@ type BreakerImpl = StateMachine<
 #[derive(Clone)]
 pub struct CircuitBreaker {
     breaker: Arc<BreakerImpl>,
-    name: String,
+    name: Box<str>,
 }
 
 impl CircuitBreaker {
@@ -44,10 +56,12 @@ impl CircuitBreaker {
             failure_policy::consecutive_failures(config.failure_threshold, backoff_strategy);
         let breaker = Config::new().failure_policy(policy).build();
 
-        Self {
+        let cb = Self {
             breaker: Arc::new(breaker),
-            name: name.to_string(),
-        }
+            name: name.into(),
+        };
+        cb.update_state(BreakerState::Closed);
+        cb
     }
 
     /// Esegue una chiamata protetta dal circuit breaker
@@ -56,28 +70,65 @@ impl CircuitBreaker {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<T, AppError>>,
     {
-        let result = f().await;
-        match &result {
-            Ok(_) => {
-                let _ = self.breaker.call(|| Ok::<_, ()>(()));
-            }
-            Err(e) => {
-                let check_result = self.breaker.call(|| Err::<(), _>(()));
-                if matches!(check_result, Err(failsafe::Error::Rejected)) {
-                    tracing::warn!(
-                        circuit_breaker = %self.name,
-                        "Circuit breaker OPENED due to repeated failures (exponential backoff active)"
-                    );
-                } else {
-                    tracing::warn!(
-                        circuit_breaker = %self.name,
-                        error = %e,
-                        "Circuit breaker recorded failure"
-                    );
-                }
-            }
+        if self.is_open() {
+            self.update_state(BreakerState::Open);
+            return Err(AppError::CircuitBreakerOpen(format!(
+                "Service '{}' is temporarily unavailable",
+                self.name
+            )));
         }
 
-        result
+        match f().await {
+            Ok(result) => {
+                self.record_success();
+                Ok(result)
+            }
+            Err(error) => {
+                self.record_failure(&error);
+                Err(error)
+            }
+        }
+    }
+
+    fn update_state(&self, state: BreakerState) {
+        update_circuit_breaker_state(&self.name, state.as_metric_value());
+
+        match state {
+            BreakerState::Closed => {
+                tracing::debug!(circuit_breaker = %self.name, "State: CLOSED");
+            }
+            BreakerState::Open => {
+                tracing::error!(
+                    circuit_breaker = %self.name,
+                    "State: OPEN - rejecting requests (exponential backoff active)"
+                );
+            }
+        }
+    }
+
+    fn is_open(&self) -> bool {
+        self.breaker.call(|| Ok::<_, ()>(())).is_err()
+    }
+
+    fn record_success(&self) {
+        let _ = self.breaker.call(|| Ok::<_, ()>(()));
+        self.update_state(BreakerState::Closed);
+    }
+
+    fn record_failure(&self, error: &AppError) -> bool {
+        let check_result = self.breaker.call(|| Err::<(), _>(()));
+        let just_opened = matches!(check_result, Err(failsafe::Error::Rejected));
+
+        if just_opened {
+            self.update_state(BreakerState::Open);
+        } else {
+            tracing::warn!(
+                circuit_breaker = %self.name,
+                error = %error,
+                "Failure recorded"
+            );
+        }
+
+        just_opened
     }
 }

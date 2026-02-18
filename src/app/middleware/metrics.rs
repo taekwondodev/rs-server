@@ -44,7 +44,9 @@ pub static DB_QUERY_DURATION: LazyLock<prometheus::HistogramVec> = LazyLock::new
         "db_query_duration_seconds",
         "Database query execution time in seconds",
         &["operation", "table"],
-        vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+        vec![
+            0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0
+        ]
     )
     .unwrap()
 });
@@ -72,7 +74,9 @@ pub static REDIS_OPERATION_DURATION: LazyLock<prometheus::HistogramVec> = LazyLo
         "redis_operation_duration_seconds",
         "Redis operation execution time in seconds",
         &["operation"],
-        vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+        vec![
+            0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0
+        ]
     )
     .unwrap()
 });
@@ -82,15 +86,6 @@ pub static REDIS_ERRORS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
         "redis_errors_total",
         "Total number of Redis errors",
         &["operation", "error_type"]
-    )
-    .unwrap()
-});
-
-pub static ERROR_COUNT: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
-    prometheus::register_counter_vec!(
-        "app_errors_total",
-        "Total number of application errors",
-        &["error_type", "endpoint"]
     )
     .unwrap()
 });
@@ -175,10 +170,6 @@ pub fn update_db_pool_stats(active: usize, idle: usize, max: usize) {
     DB_POOL_CONNECTIONS
         .with_label_values(&["max"])
         .set(max as f64);
-}
-
-pub fn track_error(error_type: &str, endpoint: &str) {
-    ERROR_COUNT.with_label_values(&[error_type, endpoint]).inc();
 }
 
 pub fn update_circuit_breaker_state(service: &str, state: u8) {

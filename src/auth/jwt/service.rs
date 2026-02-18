@@ -1,5 +1,5 @@
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use chrono::Utc;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use jsonwebtoken::{DecodingKey, EncodingKey};
@@ -11,8 +11,8 @@ use uuid::Uuid;
 
 use crate::app::AppError;
 use crate::auth::dto::response::ServiceHealth;
+use crate::auth::jwt::JwtService;
 use crate::auth::jwt::{AccessTokenClaims, RefreshTokenClaims};
-use crate::auth::traits::JwtService;
 use crate::config::CircuitBreaker;
 use crate::redis_exists;
 use crate::redis_set;

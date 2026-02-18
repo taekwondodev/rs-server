@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD, Engine};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
+use jsonwebtoken::{Algorithm, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     app::AppError,
-    auth::{jwt::Jwt, traits::JwtService},
+    auth::{jwt::Jwt, jwt::JwtService},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
