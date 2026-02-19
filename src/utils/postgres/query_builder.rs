@@ -2,6 +2,85 @@
 
 use crate::app::AppError;
 
+trait WhereClause {
+    fn wheres_mut(&mut self) -> &mut Vec<String>;
+    fn param_count_mut(&mut self) -> &mut i32;
+
+    fn where_clause(mut self, condition: &str) -> Self
+    where
+        Self: Sized,
+    {
+        self.wheres_mut().push(condition.to_string());
+        self
+    }
+
+    fn where_param<T>(mut self, column: &str, _value: &T) -> Self
+    where
+        Self: Sized,
+    {
+        *self.param_count_mut() += 1;
+        let count = *self.param_count_mut();
+        self.wheres_mut().push(format!("{} = ${}", column, count));
+        self
+    }
+}
+
+trait ReturningClause {
+    fn returning_mut(&mut self) -> &mut Vec<String>;
+
+    fn returning(mut self, column: &str) -> Self
+    where
+        Self: Sized,
+    {
+        self.returning_mut().push(column.to_string());
+        self
+    }
+
+    fn returning_all(mut self) -> Self
+    where
+        Self: Sized,
+    {
+        self.returning_mut().push("*".to_string());
+        self
+    }
+}
+
+struct QueryFragment {
+    base: String,
+}
+
+impl QueryFragment {
+    fn new(base: String) -> Self {
+        Self { base }
+    }
+
+    fn append_if(mut self, prefix: &str, items: &[String], separator: &str) -> Self {
+        if !items.is_empty() {
+            if !prefix.is_empty() {
+                self.base.push(' ');
+                self.base.push_str(prefix);
+                self.base.push(' ');
+                self.base.push_str(&items.join(separator));
+            } else {
+                self.base.push(' ');
+                self.base.push_str(&items.join(separator));
+            }
+        }
+        self
+    }
+
+    fn append_option(mut self, prefix: &str, value: Option<i64>) -> Self {
+        if let Some(v) = value {
+            self.base.push_str(&format!(" {} {}", prefix, v));
+        }
+        self
+    }
+
+    fn build(self) -> String {
+        self.base
+    }
+}
+
 pub struct SelectBuilder {
     columns: Vec<String>,
     from: Option<String>,
@@ -52,18 +131,6 @@ impl SelectBuilder {
         self
     }
 
-    pub fn where_clause(mut self, condition: &str) -> Self {
-        self.wheres.push(condition.to_string());
-        self
-    }
-
-    pub fn where_param<T>(mut self, column: &str, _value: &T) -> Self {
-        self.param_count += 1;
-        self.wheres
-            .push(format!("{} = ${}", column, self.param_count));
-        self
-    }
-
     pub fn order_by(mut self, column: &str, direction: OrderDirection) -> Self {
         self.order_by
             .push(format!("{} {}", column, direction.as_str()));
@@ -86,41 +153,36 @@ impl SelectBuilder {
         }
 
         let columns = if self.columns.is_empty() {
-            "*".to_string()
+            "*"
         } else {
-            self.columns.join(", ")
+            &self.columns.join(", ")
         };
 
-        let mut query = format!("SELECT {} FROM {}", columns, self.from.unwrap());
+        let base = format!("SELECT {} FROM {}", columns, self.from.unwrap());
 
-        if !self.joins.is_empty() {
-            query.push_str(" ");
-            query.push_str(&self.joins.join(" "));
-        }
-
-        if !self.wheres.is_empty() {
-            query.push_str(" WHERE ");
-            query.push_str(&self.wheres.join(" AND "));
-        }
-
-        if !self.order_by.is_empty() {
-            query.push_str(" ORDER BY ");
-            query.push_str(&self.order_by.join(", "));
-        }
-
-        if let Some(limit) = self.limit {
-            query.push_str(&format!(" LIMIT {}", limit));
-        }
-
-        if let Some(offset) = self.offset {
-            query.push_str(&format!(" OFFSET {}", offset));
-        }
+        let query = QueryFragment::new(base)
+            .append_if("", &self.joins, " ")
+            .append_if("WHERE", &self.wheres, " AND ")
+            .append_if("ORDER BY", &self.order_by, ", ")
+            .append_option("LIMIT", self.limit)
+            .append_option("OFFSET", self.offset)
+            .build();
 
         Ok(query)
     }
 
     pub fn param_count(&self) -> i32 {
         self.param_count
+    }
+}
+
+impl WhereClause for SelectBuilder {
+    fn wheres_mut(&mut self) -> &mut Vec<String> {
+        &mut self.wheres
+    }
+
+    fn param_count_mut(&mut self) -> &mut i32 {
+        &mut self.param_count
     }
 }
 
@@ -152,16 +214,6 @@ impl InsertBuilder {
         self
     }
 
-    pub fn returning(mut self, column: &str) -> Self {
-        self.returning.push(column.to_string());
-        self
-    }
-
-    pub fn returning_all(mut self) -> Self {
-        self.returning.push("*".to_string());
-        self
-    }
-
     pub fn build(self) -> Result<String, AppError> {
         if self.table.is_none() {
             return Err(AppError::BadRequest("Table name is required".to_string()));
@@ -174,19 +226,24 @@ impl InsertBuilder {
 
         let placeholders: Vec<String> = (1..=self.param_count).map(|i| format!("${}", i)).collect();
 
-        let mut query = format!(
+        let base = format!(
             "INSERT INTO {} ({}) VALUES ({})",
             self.table.unwrap(),
             self.columns.join(", "),
             placeholders.join(", ")
         );
 
-        if !self.returning.is_empty() {
-            query.push_str(" RETURNING ");
-            query.push_str(&self.returning.join(", "));
-        }
+        let query = QueryFragment::new(base)
+            .append_if("RETURNING", &self.returning, ", ")
+            .build();
 
         Ok(query)
+    }
+}
+
+impl ReturningClause for InsertBuilder {
+    fn returning_mut(&mut self) -> &mut Vec<String> {
+        &mut self.returning
     }
 }
 
@@ -236,28 +293,6 @@ impl UpdateBuilder {
         self
     }
 
-    pub fn where_clause(mut self, condition: &str) -> Self {
-        self.wheres.push(condition.to_string());
-        self
-    }
-
-    pub fn where_param<T>(mut self, column: &str, _value: &T) -> Self {
-        self.param_count += 1;
-        self.wheres
-            .push(format!("{} = ${}", column, self.param_count));
-        self
-    }
-
-    pub fn returning(mut self, column: &str) -> Self {
-        self.returning.push(column.to_string());
-        self
-    }
-
-    pub fn returning_all(mut self) -> Self {
-        self.returning.push("*".to_string());
-        self
-    }
-
     pub fn build(self) -> Result<String, AppError> {
         if self.table.is_none() {
             return Err(AppError::BadRequest("Table name is required".to_string()));
@@ -273,25 +308,38 @@ impl UpdateBuilder {
             ));
         }
 
-        let mut query = format!(
+        let base = format!(
             "UPDATE {} SET {}",
             self.table.unwrap(),
             self.sets.join(", ")
         );
 
-        query.push_str(" WHERE ");
-        query.push_str(&self.wheres.join(" AND "));
-
-        if !self.returning.is_empty() {
-            query.push_str(" RETURNING ");
-            query.push_str(&self.returning.join(", "));
-        }
+        let query = QueryFragment::new(base)
+            .append_if("WHERE", &self.wheres, " AND ")
+            .append_if("RETURNING", &self.returning, ", ")
+            .build();
 
         Ok(query)
     }
 
     pub fn is_empty(&self) -> bool {
         self.sets.is_empty()
+    }
+}
+
+impl WhereClause for UpdateBuilder {
+    fn wheres_mut(&mut self) -> &mut Vec<String> {
+        &mut self.wheres
+    }
+
+    fn param_count_mut(&mut self) -> &mut i32 {
+        &mut self.param_count
+    }
+}
+
+impl ReturningClause for UpdateBuilder {
+    fn returning_mut(&mut self) -> &mut Vec<String> {
+        &mut self.returning
     }
 }
 
@@ -315,18 +363,6 @@ impl DeleteBuilder {
         self
     }
 
-    pub fn where_clause(mut self, condition: &str) -> Self {
-        self.wheres.push(condition.to_string());
-        self
-    }
-
-    pub fn where_param<T>(mut self, column: &str, _value: &T) -> Self {
-        self.param_count += 1;
-        self.wheres
-            .push(format!("{} = ${}", column, self.param_count));
-        self
-    }
-
     pub fn build(self) -> Result<String, AppError> {
         if self.table.is_none() {
             return Err(AppError::BadRequest("Table name is required".to_string()));
@@ -337,12 +373,23 @@ impl DeleteBuilder {
             ));
         }
 
-        let mut query = format!("DELETE FROM {}", self.table.unwrap());
+        let base = format!("DELETE FROM {}", self.table.unwrap());
 
-        query.push_str(" WHERE ");
-        query.push_str(&self.wheres.join(" AND "));
+        let query = QueryFragment::new(base)
+            .append_if("WHERE", &self.wheres, " AND ")
+            .build();
 
         Ok(query)
+    }
+}
+
+impl WhereClause for DeleteBuilder {
+    fn wheres_mut(&mut self) -> &mut Vec<String> {
+        &mut self.wheres
+    }
+
+    fn param_count_mut(&mut self) -> &mut i32 {
+        &mut self.param_count
     }
 }
 
