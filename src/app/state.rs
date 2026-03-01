@@ -7,7 +7,8 @@ use webauthn_rs::Webauthn;
 use crate::{
     auth::{self, jwt::Jwt, service::AuthService},
     config::{
-        CircuitBreaker, CircuitBreakerConfig, DbConfig, OriginConfig, RedisConfig, WebAuthnConfig,
+        CircuitBreaker, CircuitBreakerConfig, DbConfig, JwtConfig, OriginConfig, RedisConfig,
+        WebAuthnConfig,
     },
     utils::CookieService,
 };
@@ -16,6 +17,7 @@ pub struct AppConfig {
     pub webauthn: Webauthn,
     pub db: Pool,
     pub redis_manager: ConnectionManager,
+    pub jwt_config: JwtConfig,
     pub origin_config: OriginConfig,
     pub circuit_breaker_config: CircuitBreakerConfig,
 }
@@ -32,12 +34,15 @@ impl AppConfig {
         let redis_config = RedisConfig::from_env();
         let redis_manager = redis_config.create_conn_manager().await;
 
+        let jwt_config = JwtConfig::from_env();
+
         let circuit_breaker_config = CircuitBreakerConfig::default();
 
         Self {
             webauthn,
             db,
             redis_manager,
+            jwt_config,
             origin_config,
             circuit_breaker_config,
         }
@@ -54,13 +59,17 @@ impl AppState {
     pub fn new(params: AppConfig) -> Arc<Self> {
         let db_circuit_breaker = Arc::new(CircuitBreaker::new(
             "database",
-            params.circuit_breaker_config.clone(),
+            params.circuit_breaker_config,
         ));
         let redis_circuit_breaker =
             Arc::new(CircuitBreaker::new("redis", params.circuit_breaker_config));
 
         let user_repo = Arc::new(auth::Repository::new(params.db, db_circuit_breaker));
-        let jwt_service = Arc::new(Jwt::new(params.redis_manager, redis_circuit_breaker));
+        let jwt_service = Arc::new(Jwt::new(
+            &params.jwt_config,
+            params.redis_manager,
+            redis_circuit_breaker,
+        ));
         let auth_service = Arc::new(AuthService::new(
             params.webauthn,
             user_repo,

@@ -4,7 +4,7 @@ use axum_extra::extract::cookie::SameSite;
 
 fn create_test_origin_config(frontend_url: &str, backend_domain: &str) -> OriginConfig {
     OriginConfig {
-        frontend_origin: frontend_url.to_string(),
+        frontend_origin: frontend_url.into(),
         frontend_url: url::Url::parse(frontend_url).unwrap(),
         backend_domain: backend_domain.into(),
     }

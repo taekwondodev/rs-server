@@ -13,24 +13,24 @@ const VARY_HEADERS: [http::HeaderName; 1] = [http::header::ORIGIN];
 
 #[derive(Debug)]
 pub struct OriginConfig {
-    pub frontend_origin: String,
+    pub frontend_origin: Box<str>,
     pub frontend_url: Url,
     pub backend_domain: Box<str>,
 }
 
 impl OriginConfig {
     pub fn from_env() -> Self {
-        let frontend_origin = env::var("ORIGIN_FRONTEND").unwrap();
+        let frontend_origin = env::var("ORIGIN_FRONTEND").unwrap().into_boxed_str();
         let frontend_url = Url::parse(&frontend_origin).unwrap();
 
-        let _backend_url = env::var("URL_BACKEND").unwrap();
-        let backend_url = Url::parse(&_backend_url).unwrap();
-        let backend_domain = backend_url.host_str().unwrap();
+        let backend_url = env::var("URL_BACKEND").unwrap();
+        let parsed_backend = Url::parse(&backend_url).unwrap();
+        let backend_domain = parsed_backend.host_str().unwrap().into();
 
         Self {
             frontend_origin,
             frontend_url,
-            backend_domain: backend_domain.into(),
+            backend_domain,
         }
     }
 

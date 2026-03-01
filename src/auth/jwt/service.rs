@@ -4,7 +4,6 @@ use chrono::Utc;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use redis::aio::ConnectionManager;
-use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -14,7 +13,7 @@ use crate::auth::{
     dto::ServiceHealth,
     jwt::{AccessTokenClaims, JwtService, RefreshTokenClaims},
 };
-use crate::config::CircuitBreaker;
+use crate::config::{CircuitBreaker, JwtConfig};
 use crate::redis_exists;
 use crate::redis_set;
 use crate::utils::BaseRedisRepository;
@@ -41,14 +40,13 @@ pub struct Jwt {
 }
 
 impl Jwt {
-    pub fn new(conn_manager: ConnectionManager, circuit_breaker: Arc<CircuitBreaker>) -> Self {
-        let secret_key = env::var("JWT_SECRET_KEY").unwrap();
-        if secret_key.len() < 32 {
-            panic!("JWT_SECRET_KEY must be at least 32 characters");
-        }
-
+    pub fn new(
+        jwt_config: &JwtConfig,
+        conn_manager: ConnectionManager,
+        circuit_breaker: Arc<CircuitBreaker>,
+    ) -> Self {
+        let key_bytes = jwt_config.as_bytes();
         let mut symmetric_key = [0u8; 32];
-        let key_bytes = secret_key.as_bytes();
         let len = std::cmp::min(key_bytes.len(), 32);
         symmetric_key[..len].copy_from_slice(&key_bytes[..len]);
 

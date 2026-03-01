@@ -9,8 +9,15 @@ pub struct RedisConfig {
 
 impl RedisConfig {
     pub fn from_env() -> Self {
-        let url = env::var("REDIS_URL").unwrap().into_boxed_str();
-        Self { url }
+        Self {
+            url: format!(
+                "redis://:{}@{}:{}",
+                env::var("REDIS_PASSWORD").unwrap(),
+                env::var("REDIS_HOST").unwrap(),
+                env::var("REDIS_PORT").unwrap()
+            )
+            .into_boxed_str(),
+        }
     }
 
     pub async fn create_conn_manager(&self) -> ConnectionManager {

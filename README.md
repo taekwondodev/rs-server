@@ -62,7 +62,7 @@ cp .env.example .env
 # Edit .env with your settings
 ```
 
-**⚠️ SECURITY WARNING**: The template uses default passwords (`changeme_superuser_password` and `changeme_app_password`) that **MUST** be changed before deploying to any environment.
+**⚠️ SECURITY WARNING**: The template uses default passwords (`changeme_superuser_password`,  `changeme_app_password` and `changeme_redis_password`) that **MUST** be changed before deploying to any environment.
 
 ### 2. Start Infrastructure
 

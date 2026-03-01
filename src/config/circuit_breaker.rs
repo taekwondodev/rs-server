@@ -17,7 +17,7 @@ impl BreakerState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct CircuitBreakerConfig {
     pub failure_threshold: u32,
     pub backoff_initial_secs: u64,

@@ -10,11 +10,11 @@ const DB_RECYCLE_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug)]
 pub struct DbConfig {
-    pub host: String,
+    pub host: Box<str>,
     pub port: u16,
-    pub user: String,
-    pub password: String,
-    pub dbname: String,
+    pub user: Box<str>,
+    pub password: Box<str>,
+    pub dbname: Box<str>,
     pub max_size: usize,
     pub connection_timeout: Duration,
     pub wait_timeout: Duration,
@@ -23,11 +23,11 @@ pub struct DbConfig {
 
 impl DbConfig {
     pub fn from_env() -> Self {
-        let host = env::var("DB_HOST").unwrap();
+        let host = env::var("DB_HOST").unwrap().into_boxed_str();
         let port = env::var("DB_PORT").unwrap().parse().unwrap();
-        let user = env::var("POSTGRES_USER").unwrap();
-        let password = env::var("POSTGRES_PASSWORD").unwrap();
-        let dbname = env::var("POSTGRES_DB").unwrap();
+        let user = env::var("POSTGRES_USER").unwrap().into_boxed_str();
+        let password = env::var("POSTGRES_PASSWORD").unwrap().into_boxed_str();
+        let dbname = env::var("POSTGRES_DB").unwrap().into_boxed_str();
 
         Self {
             host,
@@ -44,11 +44,12 @@ impl DbConfig {
 
     pub fn to_deadpool_config(&self) -> Config {
         let mut cfg = Config::new();
-        cfg.host = Some(self.host.clone());
+        cfg.host = Some(self.host.to_string());
         cfg.port = Some(self.port);
-        cfg.user = Some(self.user.clone());
-        cfg.password = Some(self.password.clone());
-        cfg.dbname = Some(self.dbname.clone());
+        cfg.user = Some(self.user.to_string());
+        cfg.password = Some(self.password.to_string());
+        cfg.dbname = Some(self.dbname.to_string());
+
         let mut pool_config = deadpool_postgres::PoolConfig::new(self.max_size);
         pool_config.timeouts.wait = Some(self.wait_timeout);
         pool_config.timeouts.create = Some(self.connection_timeout);
