@@ -26,7 +26,7 @@ webauthn-rs = { version = "0.5.2", features = [
 ] }
 url = "2.5.6"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19" }
+tracing-subscriber = { version = "0.3.19", features = ["json"] }
 tower-http = { version = "0.6.6", features = ["trace", "cors"] }
 base64 = "0.22.1"
 axum-extra = { version = "0.12.5", features = ["cookie"] }

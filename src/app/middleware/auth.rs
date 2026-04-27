@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    app::{AppError, AppState},
+    app::{AppError, AppState, middleware::security_audit::SecurityEvent},
     auth::jwt::{AccessTokenClaims, JwtService, claims::JwtClaims},
 };
 
@@ -17,10 +17,19 @@ impl FromRequestParts<Arc<AppState>> for AccessTokenClaims {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        let auth_header = extract_auth_header(parts)?;
-        is_bearer_token(auth_header)?;
+        let auth_header = extract_auth_header(parts).map_err(|e| {
+            SecurityEvent::Unauthorized.emit();
+            e
+        })?;
+        is_bearer_token(auth_header).map_err(|e| {
+            SecurityEvent::Unauthorized.emit();
+            e
+        })?;
         let token = extract_token(auth_header);
-        let claims = state.jwt_service.validate_access(token).await?;
+        let claims = state.jwt_service.validate_access(token).await.map_err(|e| {
+            SecurityEvent::TokenRejected { reason: "invalid or expired access token" }.emit();
+            e
+        })?;
 
         Ok(claims)
     }
@@ -40,9 +49,10 @@ impl FromRequestParts<Arc<AppState>> for AdminClaims {
 
         match claims.role() {
             Some(role) if role == "admin" => Ok(AdminClaims(claims)),
-            _ => Err(AppError::Unauthorized(String::from(
-                "Admin access required",
-            ))),
+            _ => {
+                SecurityEvent::AdminDenied { user_id: claims.sub }.emit();
+                Err(AppError::Unauthorized(String::from("Admin access required")))
+            }
         }
     }
 }

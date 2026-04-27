@@ -10,7 +10,7 @@ use webauthn_rs::{
 };
 
 use crate::{
-    app::AppError,
+    app::{AppError, middleware::security_audit::SecurityEvent},
     auth::{
         dto::{
             BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
@@ -77,12 +77,28 @@ where
 
         let passkey = self
             .webauthn
-            .finish_passkey_registration(&credentials, &passkey_registration)?;
+            .finish_passkey_registration(&credentials, &passkey_registration)
+            .map_err(|e| {
+                SecurityEvent::AuthFailure {
+                    username: &user.username,
+                    event: "registration",
+                    reason: "credential verification failed",
+                }
+                .emit();
+                AppError::from(e)
+            })?;
 
         self.auth_repo
             .complete_registration(user.id, &user.username, &passkey)
             .await?;
         self.cleanup_session(session_id);
+
+        SecurityEvent::AuthSuccess {
+            user_id: user.id,
+            username: &user.username,
+            event: "registration",
+        }
+        .emit();
 
         Ok(MessageResponse {
             message: String::from("Registration completed successfully!"),
@@ -121,7 +137,16 @@ where
 
         let result = self
             .webauthn
-            .finish_passkey_authentication(&credentials, &passkey_authentication)?;
+            .finish_passkey_authentication(&credentials, &passkey_authentication)
+            .map_err(|e| {
+                SecurityEvent::AuthFailure {
+                    username: &user.username,
+                    event: "login",
+                    reason: "credential verification failed",
+                }
+                .emit();
+                AppError::from(e)
+            })?;
 
         if result.needs_update() {
             self.auth_repo
@@ -134,6 +159,13 @@ where
         let token_pair =
             self.jwt_service
                 .generate_token_pair(user.id, &user.username, user.role.as_deref());
+
+        SecurityEvent::AuthSuccess {
+            user_id: user.id,
+            username: &user.username,
+            event: "login",
+        }
+        .emit();
 
         Ok((
             TokenResponse {

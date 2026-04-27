@@ -30,9 +30,10 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **Connection Pooling**: Efficient resource management with deadpool
 
 ### Observability (Day 0)
-- **Structured Tracing**: `tracing` + `tracing-subscriber` for distributed tracing
+- **Structured Tracing**: `tracing` + `tracing-subscriber` with JSON output (NDJSON) for log aggregators
 - **Prometheus Metrics**: Built-in metrics collection with custom histograms
-- **Request Tracing**: Automatic HTTP request/response logging
+- **Request Tracing**: Automatic HTTP request/response logging with method, path, status, and latency
+- **Security Audit Logging**: Structured security events for auth success/failure, token rejection, and privilege escalation attempts
 - **Error Context**: Rich error propagation with full context preservation
 
 ### Developer Experience
@@ -46,6 +47,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **Input Validation**: Request validation at the type system level
 - **Secure Error Handling**: No information leakage in error responses
 - **Secret Management**: Environment-based secret injection
+- **Security Audit Trail**: Tamper-evident structured log of all authentication and authorization events
 
 ## Quick Start
 
@@ -125,6 +127,25 @@ Available at `/metrics`:
 - Database pool statistics
 - Redis connection health
 - Circuit breaker state
+
+### Security Audit Logs
+
+All security events are emitted as structured JSON fields with `security: true` for easy filtering:
+
+| Event | Level | Fields |
+|---|---|---|
+| Auth success | INFO | `user_id`, `username`, `event` |
+| Auth failure | WARN | `username`, `event`, `reason` |
+| Token rejected | WARN | `reason` |
+| Unauthorized access | WARN | — |
+| Admin access denied | WARN | `user_id` |
+
+Filter in Loki:
+```
+{job="rs-server"} | json | security="true"
+```
+
+Logs are persisted via Docker `json-file` driver (100 MB × 5 files per container).
 
 ### Health Checks
 
