@@ -13,7 +13,7 @@ pub(crate) use postgres::{
 };
 pub(crate) use redis::BaseRedisRepository;
 pub(crate) use validation::{
-    Validatable, validate_json_credentials, validate_text, validate_username,
+    Validatable, validate_json_credentials, validate_role, validate_text, validate_username,
 };
 
 #[cfg(test)]

@@ -10,6 +10,7 @@ async fn main() {
     init_tracing();
 
     let params = AppConfig::from_env().await;
+    // CORS — browser-only enforcement. Remove if backend is consumed by mobile or non-browser clients.
     let cors_layer = params.origin_config.create_cors_layer();
 
     let state = AppState::new(params);

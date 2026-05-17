@@ -44,8 +44,10 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 
 ### Security
 - **CORS Configuration**: Flexible cross-origin setup for multiple environments
-- **Input Validation**: Request validation at the type system level
-- **Secure Error Handling**: No information leakage in error responses
+- **Input Validation**: Max length, charset allowlist (`[a-zA-Z0-9_-]`), and `deny_unknown_fields` on all request DTOs — unknown JSON keys rejected with 400
+- **Body Size Limit**: 16 KB cap on all requests — prevents memory exhaustion from oversized payloads
+- **Information Hiding**: Internal error details (DB errors, JWT internals, stack context) are logged server-side only — HTTP responses return fixed generic strings
+- **PII-Free Logs**: Usernames and other personal identifiers are never written to logs — only the subject UUID (`user_id`) is retained for non-repudiation
 - **Secret Management**: HKDF derives independent access and refresh keys from a single `JWT_SECRET_KEY` — no separate secrets to rotate
 - **RFC 9068 Compliance**: Access tokens carry `iss` and `aud` claims, validated on every request to prevent cross-service relay attacks
 - **Token Family Reuse Detection**: Replaying a rotated refresh token immediately revokes the entire session chain
@@ -127,8 +129,8 @@ All security events are emitted as structured JSON fields with `security: true` 
 
 | Event | Level | Fields |
 |---|---|---|
-| Auth success | INFO | `user_id`, `username`, `event` |
-| Auth failure | WARN | `username`, `event`, `reason` |
+| Auth success | INFO | `user_id`, `event` |
+| Auth failure | WARN | `user_id`, `event`, `reason` |
 | Token rejected | WARN | `reason` |
 | Unauthorized access | WARN | — |
 | Admin access denied | WARN | `user_id` |

@@ -37,19 +37,24 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let (status, message) = match self {
-            AppError::InternalServer(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
-            AppError::AlreadyExists(_) => (StatusCode::CONFLICT, self.to_string()),
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
-            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            AppError::ServiceUnavailable(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
-            AppError::CircuitBreakerOpen(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
+        let (status, client_message): (StatusCode, &str) = match &self {
+            AppError::InternalServer(_) => {
+                tracing::error!(error = %self, "internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            }
+            AppError::ServiceUnavailable(_) | AppError::CircuitBreakerOpen(_) => {
+                tracing::warn!(error = %self, "service degraded");
+                (StatusCode::SERVICE_UNAVAILABLE, "Service temporarily unavailable")
+            }
+            AppError::Unauthorized(_) => {
+                tracing::warn!(error = %self, "unauthorized");
+                (StatusCode::UNAUTHORIZED, "Unauthorized")
+            }
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
+            AppError::AlreadyExists(msg) => (StatusCode::CONFLICT, msg.as_str()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
         };
-
-        let body = Json(ErrorResponse { message });
-
-        (status, body).into_response()
+        (status, Json(ErrorResponse { message: client_message.to_owned() })).into_response()
     }
 }
 
@@ -84,8 +89,8 @@ impl From<webauthn_rs::prelude::WebauthnError> for AppError {
 }
 
 impl From<uuid::Error> for AppError {
-    fn from(value: uuid::Error) -> Self {
-        AppError::BadRequest(value.to_string())
+    fn from(_: uuid::Error) -> Self {
+        AppError::BadRequest("Invalid identifier format".into())
     }
 }
 

@@ -42,6 +42,9 @@ macro_rules! impl_validated_json_request {
 // Validation Helpers
 // ============================================================================
 
+const MAX_USERNAME_LEN: usize = 64;
+const MAX_ROLE_LEN: usize = 32;
+
 #[inline]
 pub fn validate_text(text: &str, field: &str) -> Result<(), AppError> {
     if text.trim().is_empty() {
@@ -52,32 +55,60 @@ pub fn validate_text(text: &str, field: &str) -> Result<(), AppError> {
 
 #[inline]
 pub fn validate_username(username: &str) -> Result<(), AppError> {
-    validate_text(username, "Username")?;
-
-    if username.trim().len() < 3 {
-        return Err(AppError::BadRequest(String::from(
-            "Username must be at least 3 characters",
+    if username.trim().is_empty() {
+        return Err(AppError::BadRequest("Username cannot be empty".into()));
+    }
+    if username.len() > MAX_USERNAME_LEN {
+        return Err(AppError::BadRequest(format!(
+            "Username must be at most {MAX_USERNAME_LEN} characters"
         )));
     }
+    if username.trim().len() < 3 {
+        return Err(AppError::BadRequest(
+            "Username must be at least 3 characters".into(),
+        ));
+    }
+    if !username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(AppError::BadRequest(
+            "Username contains invalid characters".into(),
+        ));
+    }
+    Ok(())
+}
 
+#[inline]
+pub fn validate_role(role: &str) -> Result<(), AppError> {
+    if role.trim().is_empty() {
+        return Err(AppError::BadRequest("Role cannot be empty".into()));
+    }
+    if role.len() > MAX_ROLE_LEN {
+        return Err(AppError::BadRequest(format!(
+            "Role must be at most {MAX_ROLE_LEN} characters"
+        )));
+    }
+    if !role.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(AppError::BadRequest(
+            "Role contains invalid characters".into(),
+        ));
+    }
     Ok(())
 }
 
 #[inline]
 pub fn validate_json_credentials(credentials: &serde_json::Value) -> Result<(), AppError> {
     if credentials.is_null() {
-        return Err(AppError::BadRequest(String::from("Invalid credentials")));
+        return Err(AppError::BadRequest("Invalid credentials".into()));
     }
-
     if !credentials.is_object() {
-        return Err(AppError::BadRequest(String::from("Invalid credentials")));
+        return Err(AppError::BadRequest("Invalid credentials".into()));
     }
-
     if let Some(obj) = credentials.as_object()
         && obj.is_empty()
     {
-        return Err(AppError::BadRequest(String::from("Invalid credentials")));
+        return Err(AppError::BadRequest("Invalid credentials".into()));
     }
-
     Ok(())
 }

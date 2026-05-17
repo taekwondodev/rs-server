@@ -85,6 +85,23 @@ Wire it into `src/app/router.rs` and `src/app/state.rs`.
 
 ---
 
+## CORS
+
+CORS is browser-only enforcement — native and mobile clients ignore it entirely.
+
+- Config: `src/config/origin.rs` (`create_cors_layer`)
+- Applied: `src/main.rs`
+
+**If the backend is consumed only by mobile or non-browser clients**, remove:
+1. `cors_layer` from `src/main.rs`
+2. `src/config/origin.rs` (entire file)
+3. `ORIGIN_FRONTEND` env var from `.env` and `.env.example`
+4. `OriginConfig` from `src/app/state.rs` / `src/config/mod.rs`
+
+`URL_BACKEND` must stay — it is also used by WebAuthn as `rp_id`.
+
+---
+
 ## Auth System
 
 The auth module is complete. Read before touching.

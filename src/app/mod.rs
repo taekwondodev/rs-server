@@ -3,6 +3,8 @@ pub(crate) mod middleware;
 pub(crate) mod router;
 pub(crate) mod server;
 pub(crate) mod state;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use error::AppError;
 pub(crate) use middleware::init_tracing;

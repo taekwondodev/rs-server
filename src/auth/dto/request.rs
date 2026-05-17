@@ -4,12 +4,13 @@ use utoipa::ToSchema;
 use crate::{
     app::AppError,
     impl_validated_json_request,
-    utils::{Validatable, validate_json_credentials, validate_text, validate_username},
+    utils::{Validatable, validate_json_credentials, validate_role, validate_text, validate_username},
 };
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BeginRequest {
-    #[schema(example = "john_doe", min_length = 3)]
+    #[schema(example = "john_doe", min_length = 3, max_length = 64)]
     pub username: String,
     #[schema(example = "admin")]
     pub role: Option<String>,
@@ -18,11 +19,15 @@ pub struct BeginRequest {
 impl Validatable for BeginRequest {
     fn validate(&self) -> Result<(), AppError> {
         validate_username(&self.username)?;
+        if let Some(role) = &self.role {
+            validate_role(role)?;
+        }
         Ok(())
     }
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FinishRequest {
     #[schema(example = "john_doe")]
     pub username: String,

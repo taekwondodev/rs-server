@@ -42,6 +42,7 @@ impl OriginConfig {
         &self.frontend_url
     }
 
+    // CORS — enforced by browsers, invisible to native/mobile clients. Safe to remove for non-web frontends.
     pub fn create_cors_layer(&self) -> CorsLayer {
         let origin = self.frontend_origin.parse::<HeaderValue>().unwrap();
         CorsLayer::new()

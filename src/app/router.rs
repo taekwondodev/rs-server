@@ -76,7 +76,7 @@ pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
         .split_for_parts();
 
     let service_builder = ServiceBuilder::new()
-        .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(http_trace_layer!())
         .layer(metrics::create_prometheus_layer());
 

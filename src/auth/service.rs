@@ -80,7 +80,7 @@ where
             .finish_passkey_registration(&credentials, &passkey_registration)
             .map_err(|e| {
                 SecurityEvent::AuthFailure {
-                    username: &user.username,
+                    user_id: user.id,
                     event: "registration",
                     reason: "credential verification failed",
                 }
@@ -95,7 +95,6 @@ where
 
         SecurityEvent::AuthSuccess {
             user_id: user.id,
-            username: &user.username,
             event: "registration",
         }
         .emit();
@@ -140,7 +139,7 @@ where
             .finish_passkey_authentication(&credentials, &passkey_authentication)
             .map_err(|e| {
                 SecurityEvent::AuthFailure {
-                    username: &user.username,
+                    user_id: user.id,
                     event: "login",
                     reason: "credential verification failed",
                 }
@@ -170,7 +169,6 @@ where
 
         SecurityEvent::AuthSuccess {
             user_id: user.id,
-            username: &user.username,
             event: "login",
         }
         .emit();
