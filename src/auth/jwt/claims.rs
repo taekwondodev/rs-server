@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     app::AppError,
-    auth::jwt::{Jwt, JwtService},
+    auth::jwt::{Jwt, JwtCrypto, JwtService},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +46,7 @@ impl AccessTokenClaims {
         }
     }
 
-    pub async fn validate(jwt: &Jwt, token: &str) -> Result<Self, AppError> {
+    pub async fn validate(jwt: &JwtCrypto, token: &str) -> Result<Self, AppError> {
         let mut validation = Validation::new(Algorithm::EdDSA);
         validation.set_issuer(&[&jwt.issuer]);
         validation.set_audience(&[&jwt.audience]);
@@ -54,7 +54,7 @@ impl AccessTokenClaims {
         Ok(token_data.claims)
     }
 
-    pub fn to_token(&self, jwt: &Jwt) -> String {
+    pub fn to_token(&self, jwt: &JwtCrypto) -> String {
         let mut header = Header::new(Algorithm::EdDSA);
         header.typ = Some("JWT".to_string());
 
@@ -120,9 +120,9 @@ impl RefreshTokenClaims {
 
     pub async fn validate(jwt: &Jwt, token: &str) -> Result<Self, AppError> {
         let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
-        validation.set_issuer(&[&jwt.issuer]);
-        validation.set_audience(&[&jwt.audience]);
-        let token_data = decode::<Self>(token, &jwt.refresh_decoding_key, &validation)?;
+        validation.set_issuer(&[&jwt.crypto.issuer]);
+        validation.set_audience(&[&jwt.crypto.audience]);
+        let token_data = decode::<Self>(token, &jwt.crypto.refresh_decoding_key, &validation)?;
         let claims = token_data.claims;
 
         match jwt.validate_session(claims.jti()).await {
@@ -136,7 +136,7 @@ impl RefreshTokenClaims {
         }
     }
 
-    pub fn to_token(&self, jwt: &Jwt) -> String {
+    pub fn to_token(&self, jwt: &JwtCrypto) -> String {
         let mut header = Header::new(Algorithm::HS256);
         header.typ = Some("JWT".to_string());
 
