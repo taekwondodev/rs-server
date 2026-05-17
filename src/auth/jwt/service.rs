@@ -198,7 +198,12 @@ fn ed25519_public_to_pem(verifying_key: &VerifyingKey) -> Vec<u8> {
 
 impl JwtService for Jwt {
     async fn check_redis(&self) -> ServiceHealth {
-        self.base.check_redis_health().await
+        let breaker_u8 = match self.base.breaker_state() {
+            rs_repository_utils::CircuitBreakerState::Closed => 0,
+            rs_repository_utils::CircuitBreakerState::Open => 1,
+        };
+        crate::app::middleware::metrics::update_circuit_breaker_state("redis", breaker_u8);
+        self.base.check_health().await.into()
     }
 
     fn generate_token_pair(&self, user_id: Uuid, username: &str, role: Option<&str>) -> TokenPair {

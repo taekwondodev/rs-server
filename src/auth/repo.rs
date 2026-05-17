@@ -14,7 +14,7 @@ use crate::{
     },
     config::CircuitBreaker,
     db_delete, db_insert, db_select, db_update,
-    utils::{BaseRepository, FromRow, RepositoryMetrics},
+    utils::{BaseRepository, FromRow},
 };
 
 pub struct Repository {
@@ -58,8 +58,18 @@ impl Repository {
 
 impl AuthRepository for Repository {
     async fn check_db(&self) -> ServiceHealth {
-        self.base.update_pool_metrics();
-        self.base.check_database_health().await
+        let status = self.base.pool().status();
+        crate::app::middleware::metrics::update_db_pool_stats(
+            status.size - status.available,
+            status.available,
+            status.max_size,
+        );
+        let breaker_u8 = match self.base.breaker_state() {
+            rs_repository_utils::CircuitBreakerState::Closed => 0,
+            rs_repository_utils::CircuitBreakerState::Open => 1,
+        };
+        crate::app::middleware::metrics::update_circuit_breaker_state("database", breaker_u8);
+        self.base.check_health().await.into()
     }
 
     async fn create_user(&self, username: &str, role: Option<&str>) -> Result<User, AppError> {
@@ -98,7 +108,7 @@ impl AuthRepository for Repository {
                     })?
                 };
 
-                User::from_row(&row)
+                User::from_row(&row).map_err(Into::into)
             })
             .await
     }
@@ -112,7 +122,7 @@ impl AuthRepository for Repository {
                 )
                 .await
         })? {
-            Some(row) => User::from_row(&row),
+            Some(row) => User::from_row(&row).map_err(Into::into),
             None => Err(AppError::NotFound("Username not found".to_string())),
         }
     }

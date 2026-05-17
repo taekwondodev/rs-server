@@ -79,3 +79,22 @@ pub enum HealthStatus {
     Healthy,
     Unhealthy,
 }
+
+impl From<rs_repository_utils::HealthStatus> for HealthStatus {
+    fn from(s: rs_repository_utils::HealthStatus) -> Self {
+        match s {
+            rs_repository_utils::HealthStatus::Healthy => Self::Healthy,
+            rs_repository_utils::HealthStatus::Unhealthy => Self::Unhealthy,
+        }
+    }
+}
+
+impl From<rs_repository_utils::ServiceHealth> for ServiceHealth {
+    fn from(s: rs_repository_utils::ServiceHealth) -> Self {
+        Self {
+            status: s.status.into(),
+            message: s.message,
+            response_time_ms: s.response_time_ms,
+        }
+    }
+}

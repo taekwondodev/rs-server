@@ -105,3 +105,15 @@ impl From<jsonwebtoken::errors::Error> for AppError {
         AppError::Unauthorized(value.to_string())
     }
 }
+
+impl From<rs_repository_utils::RepositoryError> for AppError {
+    fn from(e: rs_repository_utils::RepositoryError) -> Self {
+        match e {
+            rs_repository_utils::RepositoryError::InvalidQuery(msg) => AppError::BadRequest(msg),
+            rs_repository_utils::RepositoryError::CircuitBreakerOpen(msg) => {
+                AppError::CircuitBreakerOpen(msg)
+            }
+            _ => AppError::InternalServer(e.to_string()),
+        }
+    }
+}

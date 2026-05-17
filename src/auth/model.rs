@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::utils::FromRow;
+use rs_repository_utils::RepositoryError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -16,7 +17,7 @@ pub struct User {
 }
 
 impl FromRow for User {
-    fn from_row(row: &tokio_postgres::Row) -> Result<Self, crate::app::AppError> {
+    fn from_row(row: &tokio_postgres::Row) -> Result<Self, RepositoryError> {
         Ok(User {
             id: row.try_get("id")?,
             username: row.try_get("username")?,
@@ -40,7 +41,7 @@ pub struct WebAuthnSession {
 }
 
 impl FromRow for WebAuthnSession {
-    fn from_row(row: &tokio_postgres::Row) -> Result<Self, crate::app::AppError> {
+    fn from_row(row: &tokio_postgres::Row) -> Result<Self, RepositoryError> {
         Ok(WebAuthnSession {
             id: row.try_get("id")?,
             user_id: row.try_get("user_id")?,

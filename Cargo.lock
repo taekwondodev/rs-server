@@ -2065,6 +2065,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
+name = "rs-repository-utils"
+version = "0.1.0"
+source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#4fa3659cb87ad4a01e999612a2626dc933c2d9d9"
+dependencies = [
+ "deadpool-postgres",
+ "failsafe",
+ "redis",
+ "serde",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+]
+
+[[package]]
 name = "rs-server"
 version = "1.0.0"
 dependencies = [
@@ -2075,11 +2089,11 @@ dependencies = [
  "chrono",
  "deadpool-postgres",
  "ed25519-dalek",
- "failsafe",
  "hkdf",
  "jsonwebtoken",
  "prometheus",
  "redis",
+ "rs-repository-utils",
  "serde",
  "serde_json",
  "sha2 0.11.0",
