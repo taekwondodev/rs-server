@@ -96,10 +96,10 @@ impl CookieService {
         let frontend_domain = origin_config.frontend_url.host_str().unwrap();
         let backend_domain = origin_config.rp_id();
 
-        if Self::are_subdomains_of_same(frontend_domain, backend_domain) {
-            if let Some(base_domain) = Self::get_base_domain(frontend_domain, backend_domain) {
-                return Some(format!(".{}", base_domain));
-            }
+        if Self::are_subdomains_of_same(frontend_domain, backend_domain)
+            && let Some(base_domain) = Self::get_base_domain(frontend_domain, backend_domain)
+        {
+            return Some(format!(".{}", base_domain));
         }
 
         None

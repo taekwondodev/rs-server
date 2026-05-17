@@ -63,7 +63,7 @@ impl AuthRepository for Repository {
     }
 
     async fn create_user(&self, username: &str, role: Option<&str>) -> Result<User, AppError> {
-        match self.get_user_by_username(&username).await {
+        match self.get_user_by_username(username).await {
             Ok(user) => {
                 if user.status == "active" {
                     return Err(AppError::AlreadyExists(String::from(

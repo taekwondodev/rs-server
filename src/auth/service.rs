@@ -16,7 +16,7 @@ use crate::{
             BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
             MessageResponse, TokenResponse,
         },
-        jwt::{JwtService, claims::JwtClaims},
+        jwt::JwtService,
         model::WebAuthnSession,
         traits::AuthRepository,
     },
@@ -160,6 +160,14 @@ where
             self.jwt_service
                 .generate_token_pair(user.id, &user.username, user.role.as_deref());
 
+        self.jwt_service
+            .store_session(
+                &token_pair.refresh_jti,
+                &token_pair.refresh_family_id,
+                token_pair.refresh_exp,
+            )
+            .await?;
+
         SecurityEvent::AuthSuccess {
             user_id: user.id,
             username: &user.username,
@@ -178,15 +186,26 @@ where
 
     pub async fn refresh(&self, refresh_token: &str) -> Result<(TokenResponse, String), AppError> {
         let claims = self.jwt_service.validate_refresh(refresh_token).await?;
+
         self.jwt_service
-            .blacklist(&claims.jti(), claims.exp())
+            .revoke_session(claims.jti(), claims.family_id())
             .await?;
 
-        let token_pair = self.jwt_service.generate_token_pair(
-            claims.sub().to_owned(),
+        let token_pair = self.jwt_service.generate_token_pair_with_family(
+            *claims.sub(),
             claims.username(),
             claims.role(),
+            claims.family_id(),
         );
+
+        self.jwt_service
+            .store_session(
+                &token_pair.refresh_jti,
+                claims.family_id(),
+                token_pair.refresh_exp,
+            )
+            .await?;
+
         Ok((
             TokenResponse {
                 message: String::from("Refresh completed successfully!"),
@@ -197,12 +216,20 @@ where
     }
 
     pub async fn logout(&self, refresh_token: &str) -> Result<MessageResponse, AppError> {
-        if !refresh_token.is_empty() {
-            if let Ok(claims) = self.jwt_service.validate_refresh(refresh_token).await {
-                if let Err(e) = self.jwt_service.blacklist(claims.jti(), claims.exp()).await {
-                    tracing::error!("Failed to blacklist token during logout: {}", e);
-                }
+        if refresh_token.is_empty() {
+            return Ok(MessageResponse {
+                message: String::from("Logout completed successfully!"),
+            });
+        }
+
+        match self.jwt_service.validate_refresh(refresh_token).await {
+            Ok(claims) => {
+                self.jwt_service
+                    .revoke_session(claims.jti(), claims.family_id())
+                    .await?;
             }
+            Err(AppError::Unauthorized(_)) => {}
+            Err(e) => return Err(e),
         }
 
         Ok(MessageResponse {

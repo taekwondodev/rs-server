@@ -1,5 +1,9 @@
-pub mod blacklist {
+pub mod session {
     pub fn key(jti: &str) -> String {
-        format!("blacklist:{}", jti)
+        format!("session:{}", jti)
+    }
+
+    pub fn family_key(family_id: &str) -> String {
+        format!("family:{}", family_id)
     }
 }

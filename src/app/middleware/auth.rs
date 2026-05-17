@@ -4,7 +4,7 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
     app::{AppError, AppState, middleware::security_audit::SecurityEvent},
-    auth::jwt::{AccessTokenClaims, JwtService, claims::JwtClaims},
+    auth::jwt::{AccessTokenClaims, JwtService},
 };
 
 const UNAUTHORIZED_MESSAGE: &str = "You are unauthorized";
@@ -17,19 +17,23 @@ impl FromRequestParts<Arc<AppState>> for AccessTokenClaims {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        let auth_header = extract_auth_header(parts).map_err(|e| {
+        let auth_header = extract_auth_header(parts).inspect_err(|_| {
             SecurityEvent::Unauthorized.emit();
-            e
         })?;
-        is_bearer_token(auth_header).map_err(|e| {
+        is_bearer_token(auth_header).inspect_err(|_| {
             SecurityEvent::Unauthorized.emit();
-            e
         })?;
         let token = extract_token(auth_header);
-        let claims = state.jwt_service.validate_access(token).await.map_err(|e| {
-            SecurityEvent::TokenRejected { reason: "invalid or expired access token" }.emit();
-            e
-        })?;
+        let claims = state
+            .jwt_service
+            .validate_access(token)
+            .await
+            .inspect_err(|_| {
+                SecurityEvent::TokenRejected {
+                    reason: "invalid or expired access token",
+                }
+                .emit();
+            })?;
 
         Ok(claims)
     }
@@ -48,10 +52,15 @@ impl FromRequestParts<Arc<AppState>> for AdminClaims {
         let claims = AccessTokenClaims::from_request_parts(parts, state).await?;
 
         match claims.role() {
-            Some(role) if role == "admin" => Ok(AdminClaims(claims)),
+            Some("admin") => Ok(AdminClaims(claims)),
             _ => {
-                SecurityEvent::AdminDenied { user_id: claims.sub }.emit();
-                Err(AppError::Unauthorized(String::from("Admin access required")))
+                SecurityEvent::AdminDenied {
+                    user_id: claims.sub,
+                }
+                .emit();
+                Err(AppError::Unauthorized(String::from(
+                    "Admin access required",
+                )))
             }
         }
     }

@@ -25,7 +25,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 
 ### Database & Caching
 - **PostgreSQL**: Type-safe queries with prepared statement caching
-- **Redis**: Session management and distributed caching
+- **Redis**: JWT session whitelist with token family tracking — self-cleaning via TTL, no background jobs
 - **Query Builders**: Optional dynamic SQL builders for complex operations
 - **Connection Pooling**: Efficient resource management with deadpool
 
@@ -46,7 +46,9 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **CORS Configuration**: Flexible cross-origin setup for multiple environments
 - **Input Validation**: Request validation at the type system level
 - **Secure Error Handling**: No information leakage in error responses
-- **Secret Management**: Environment-based secret injection
+- **Secret Management**: HKDF derives independent access and refresh keys from a single `JWT_SECRET_KEY` — no separate secrets to rotate
+- **RFC 9068 Compliance**: Access tokens carry `iss` and `aud` claims, validated on every request to prevent cross-service relay attacks
+- **Token Family Reuse Detection**: Replaying a rotated refresh token immediately revokes the entire session chain
 - **Security Audit Trail**: Tamper-evident structured log of all authentication and authorization events
 
 ## Quick Start
@@ -54,7 +56,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 ### Prerequisites
 
 - **Docker & Docker Compose** (for infrastructure)
-- **Rust 1.75+** (for development)
+- **Rust 1.85+** (for development)
 - **Git**
 
 ### 1. Configure Environment
@@ -64,7 +66,7 @@ cp .env.example .env
 # Edit .env with your settings
 ```
 
-**⚠️ SECURITY WARNING**: The template uses default passwords (`changeme_superuser_password`,  `changeme_app_password` and `changeme_redis_password`) that **MUST** be changed before deploying to any environment.
+**⚠️ SECURITY WARNING**: The template uses default passwords (`changeme_superuser_password`, `changeme_app_password` and `changeme_redis_password`) that **MUST** be changed before deploying to any environment. Also set `JWT_ISSUER`, `JWT_AUDIENCE`, and generate a strong `JWT_SECRET_KEY` (minimum 32 bytes).
 
 ### 2. Start Infrastructure
 
@@ -101,16 +103,7 @@ The service will be available at:
 
 ## Usage Guide
 
-### Feature Flags
-
-```toml
-[features]
-default = []
-strict = []  # Enable warnings for template utilities
-```
-
-**Template Mode (default):** No warnings for unused utilities
-**Project Mode:** Set `default = ["strict"]` in `Cargo.toml`
+For setup instructions and project adaptation guidance, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — loaded automatically by Claude Code.
 
 ## Testing
 

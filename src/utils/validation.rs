@@ -73,10 +73,10 @@ pub fn validate_json_credentials(credentials: &serde_json::Value) -> Result<(), 
         return Err(AppError::BadRequest(String::from("Invalid credentials")));
     }
 
-    if let Some(obj) = credentials.as_object() {
-        if obj.is_empty() {
-            return Err(AppError::BadRequest(String::from("Invalid credentials")));
-        }
+    if let Some(obj) = credentials.as_object()
+        && obj.is_empty()
+    {
+        return Err(AppError::BadRequest(String::from("Invalid credentials")));
     }
 
     Ok(())
