@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 default = [] # "strict" per i warnings
 strict = []
+gateway = []
 
 [dependencies]
 tokio = { version = "1.47.1", features = ["full"] }

@@ -63,6 +63,34 @@ For each warning from step 4, decide: use it or delete it. Don't suppress it. Th
 
 Run `cargo build` again. Zero warnings means the codebase is clean.
 
+### 5a. Decide: monolith or gateway
+
+**Monolith (default):** remove the gateway scaffold entirely.
+
+1. Delete `src/app/middleware/gateway.rs`
+2. Delete `src/app/middleware/tests/` (entire directory)
+3. In `src/app/middleware/mod.rs` remove:
+   ```rust
+   #[cfg(feature = "gateway")]
+   pub(crate) mod gateway;
+
+   #[cfg(test)]
+   mod tests;
+   ```
+4. In `src/app/middleware/security_audit.rs` remove the two `GatewayForward` lines (variant + `emit` arm)
+5. In `src/app/router.rs` revert to consuming `state` directly and remove the gateway block:
+   ```rust
+   // change back
+   .with_state(state)   // was state.clone()
+
+   // remove entirely
+   #[cfg(feature = "gateway")]
+   let router = router.merge(...);
+   ```
+6. In `Cargo.toml` remove `gateway = []` from `[features]`
+
+**Gateway (microservice):** keep everything, then replace `proxy_stub` with a real proxy handler and wire your downstream routes inside the `#[cfg(feature = "gateway")]` block in `router.rs`.
+
 ### 6. Add your first domain module
 
 Create `src/<domain>/` with this layout:

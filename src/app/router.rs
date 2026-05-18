@@ -72,7 +72,7 @@ pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
         .route("/healthz", get(handler::healthz))
-        .with_state(state)
+        .with_state(state.clone())
         .split_for_parts();
 
     let service_builder = ServiceBuilder::new()
@@ -80,8 +80,19 @@ pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
         .layer(http_trace_layer!())
         .layer(metrics::create_prometheus_layer());
 
-    router
+    let router = router
         .route("/metrics", get(metrics::metrics_handler))
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
-        .layer(service_builder)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+
+    #[cfg(feature = "gateway")]
+    let router = router.merge(
+        axum::Router::new()
+            .route("/*path", axum::routing::any(crate::app::middleware::gateway::proxy_stub))
+            .layer(axum::middleware::from_fn_with_state(
+                state,
+                crate::app::middleware::gateway::inject_user_headers,
+            )),
+    );
+
+    router.layer(service_builder)
 }

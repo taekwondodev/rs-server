@@ -7,6 +7,9 @@ pub enum SecurityEvent<'a> {
     Unauthorized,
     #[cfg_attr(not(feature = "strict"), allow(dead_code))]
     AdminDenied { user_id: Uuid },
+    #[cfg(feature = "gateway")]
+    #[cfg_attr(not(feature = "strict"), allow(dead_code))]
+    GatewayForward { user_id: Uuid },
 }
 
 impl SecurityEvent<'_> {
@@ -26,6 +29,10 @@ impl SecurityEvent<'_> {
             }
             Self::AdminDenied { user_id } => {
                 tracing::warn!(security = true, %user_id, "access.admin_denied")
+            }
+            #[cfg(feature = "gateway")]
+            Self::GatewayForward { user_id } => {
+                tracing::debug!(security = true, %user_id, "gateway.forward")
             }
         }
     }
