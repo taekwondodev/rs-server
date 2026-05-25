@@ -6,7 +6,7 @@ use crate::{
     app::AppError,
     auth::{
         dto::ServiceHealth,
-        model::{User, WebAuthnSession},
+        model::{RegistrationOutcome, User, WebAuthnSession},
     },
 };
 
@@ -16,11 +16,7 @@ pub trait AuthRepository: Send + Sync {
         &self,
         username: &str,
         role: Option<&str>,
-    ) -> impl Future<Output = Result<User, AppError>> + Send;
-    fn get_user_by_username(
-        &self,
-        username: &str,
-    ) -> impl Future<Output = Result<User, AppError>> + Send;
+    ) -> impl Future<Output = Result<RegistrationOutcome, AppError>> + Send;
     fn get_user_and_session(
         &self,
         session_id: Uuid,

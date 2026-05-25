@@ -30,6 +30,15 @@ pub static TOKEN_OPERATIONS: LazyLock<prometheus::CounterVec> = LazyLock::new(||
     .unwrap()
 });
 
+pub static REGISTRATION_CONFLICTS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
+    prometheus::register_counter_vec!(
+        "webauthn_username_conflict_total",
+        "Registration attempts hitting an existing username: taken (active user) or resumed (incomplete registration)",
+        &["outcome"]
+    )
+    .unwrap()
+});
+
 pub static HEALTH_CHECKS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
     prometheus::register_counter_vec!(
         "health_check_requests_total",
@@ -126,6 +135,10 @@ pub async fn metrics_handler() -> impl IntoResponse {
 
 pub fn create_prometheus_layer() -> PrometheusMetricLayer<'static> {
     PrometheusMetricLayer::new()
+}
+
+pub fn track_registration_conflict(outcome: &str) {
+    REGISTRATION_CONFLICTS.with_label_values(&[outcome]).inc();
 }
 
 pub fn track_registration_attempt(success: bool) {

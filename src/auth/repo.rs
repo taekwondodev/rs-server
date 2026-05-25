@@ -8,7 +8,7 @@ use crate::{
     app::AppError,
     auth::{
         dto::ServiceHealth,
-        model::{User, WebAuthnSession},
+        model::{RegistrationOutcome, User, WebAuthnSession},
         queries,
         traits::AuthRepository,
     },
@@ -72,21 +72,11 @@ impl AuthRepository for Repository {
         self.base.check_health().await.into()
     }
 
-    async fn create_user(&self, username: &str, role: Option<&str>) -> Result<User, AppError> {
-        match self.get_user_by_username(username).await {
-            Ok(user) => {
-                if user.status == "active" {
-                    return Err(AppError::AlreadyExists(String::from(
-                        "Username already exists",
-                    )));
-                } else {
-                    return Ok(user);
-                }
-            }
-            Err(AppError::NotFound(_)) => {}
-            Err(e) => return Err(e),
-        }
-
+    async fn create_user(
+        &self,
+        username: &str,
+        role: Option<&str>,
+    ) -> Result<RegistrationOutcome, AppError> {
         let username = username.to_string();
         let role = role.map(|s| s.to_string());
 
@@ -94,37 +84,27 @@ impl AuthRepository for Repository {
             .execute_with_circuit_breaker(move |db| async move {
                 let client = db.get().await?;
 
-                let row = if let Some(role_val) = &role {
-                    db_insert!("users", {
-                        client
-                            .query_one(queries::users::INSERT_WITH_ROLE, &[&username, role_val])
-                            .await
-                    })?
-                } else {
-                    db_insert!("users", {
-                        client
-                            .query_one(queries::users::INSERT_WITHOUT_ROLE, &[&username])
-                            .await
-                    })?
-                };
+                let row = db_insert!("users", {
+                    client
+                        .query_one(queries::users::UPSERT, &[&username, &role])
+                        .await
+                })?;
 
-                User::from_row(&row).map_err(Into::into)
+                let conflicted: bool = row.try_get("conflicted")?;
+                let user = User::from_row(&row).map_err(AppError::from)?;
+
+                if conflicted {
+                    if user.status == "active" {
+                        return Err(AppError::AlreadyExists(
+                            "Username already exists".to_string(),
+                        ));
+                    }
+                    return Ok(RegistrationOutcome::Resumed(user));
+                }
+
+                Ok(RegistrationOutcome::Created(user))
             })
             .await
-    }
-
-    async fn get_user_by_username(&self, username: &str) -> Result<User, AppError> {
-        match db_select!("users", {
-            self.base
-                .execute_prepared_opt(
-                    queries::users::SELECT_BY_USERNAME,
-                    &[&username as &(dyn tokio_postgres::types::ToSql + Sync)],
-                )
-                .await
-        })? {
-            Some(row) => User::from_row(&row).map_err(Into::into),
-            None => Err(AppError::NotFound("Username not found".to_string())),
-        }
     }
 
     async fn get_user_and_session(

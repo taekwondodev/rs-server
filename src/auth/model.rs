@@ -30,6 +30,11 @@ impl FromRow for User {
     }
 }
 
+pub enum RegistrationOutcome {
+    Created(User),
+    Resumed(User),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebAuthnSession {
     pub id: Uuid,

@@ -1,13 +1,8 @@
 pub mod users {
-    pub const SELECT_BY_USERNAME: &str = "SELECT * FROM users WHERE username = $1";
-
-    pub const INSERT_WITH_ROLE: &str = "INSERT INTO users (username, role)
+    pub const UPSERT: &str = "INSERT INTO users (username, role)
          VALUES ($1, $2)
-         RETURNING *";
-
-    pub const INSERT_WITHOUT_ROLE: &str = "INSERT INTO users (username)
-         VALUES ($1)
-         RETURNING *";
+         ON CONFLICT (username) DO UPDATE SET updated_at = users.updated_at
+         RETURNING *, (xmax::text::bigint <> 0) AS conflicted";
 
     pub const UPDATE_STATUS_ACTIVE: &str = "UPDATE users SET status = 'active' WHERE username = $1";
 

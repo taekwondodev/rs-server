@@ -10,14 +10,14 @@ use webauthn_rs::{
 };
 
 use crate::{
-    app::{AppError, middleware::security_audit::SecurityEvent},
+    app::{AppError, middleware::{metrics, security_audit::SecurityEvent}},
     auth::{
         dto::{
             BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
             MessageResponse, TokenResponse,
         },
         jwt::JwtService,
-        model::WebAuthnSession,
+        model::{RegistrationOutcome, WebAuthnSession},
         traits::AuthRepository,
     },
 };
@@ -46,10 +46,23 @@ where
     }
 
     pub async fn begin_register(&self, req: BeginRequest) -> Result<BeginResponse, AppError> {
-        let user = self
+        let user = match self
             .auth_repo
             .create_user(&req.username, req.role.as_deref())
-            .await?;
+            .await
+        {
+            Ok(RegistrationOutcome::Created(u)) => u,
+            Ok(RegistrationOutcome::Resumed(u)) => {
+                tracing::info!(user_id = %u.id, "registration.resumed");
+                metrics::track_registration_conflict("resumed");
+                u
+            }
+            Err(e @ AppError::AlreadyExists(_)) => {
+                metrics::track_registration_conflict("taken");
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        };
 
         let (ccr, passkey_registration) = self.webauthn.start_passkey_registration(
             user.id,
@@ -58,7 +71,7 @@ where
             None,
         )?;
 
-        let (session_data, opts) = self.prepare_session_data(passkey_registration, ccr).await?;
+        let (session_data, opts) = Self::prepare_session_data(passkey_registration, ccr)?;
         self.create_session_response(user.id, session_data, opts, "registration")
             .await
     }
@@ -68,12 +81,8 @@ where
             .get_user_and_session(&req.session_id, &req.username, "registration")
             .await?;
 
-        let (passkey_registration, credentials) = tokio::join!(
-            async { serde_json::from_value::<PasskeyRegistration>(session.data) },
-            async { serde_json::from_value::<RegisterPublicKeyCredential>(req.credentials) }
-        );
-        let passkey_registration = passkey_registration?;
-        let credentials = credentials?;
+        let passkey_registration = serde_json::from_value::<PasskeyRegistration>(session.data)?;
+        let credentials = serde_json::from_value::<RegisterPublicKeyCredential>(req.credentials)?;
 
         let passkey = self
             .webauthn
@@ -111,9 +120,7 @@ where
             .await?;
         let (rcr, passkey_authentication) = self.webauthn.start_passkey_authentication(&passkey)?;
 
-        let (session_data, opts) = self
-            .prepare_session_data(passkey_authentication, rcr)
-            .await?;
+        let (session_data, opts) = Self::prepare_session_data(passkey_authentication, rcr)?;
 
         self.create_session_response(user.id, session_data, opts, "login")
             .await
@@ -127,12 +134,8 @@ where
             .get_user_and_session(&req.session_id, &req.username, "login")
             .await?;
 
-        let (passkey_authentication, credentials) = tokio::join!(
-            async { serde_json::from_value::<PasskeyAuthentication>(session.data) },
-            async { serde_json::from_value::<PublicKeyCredential>(req.credentials) }
-        );
-        let passkey_authentication = passkey_authentication?;
-        let credentials = credentials?;
+        let passkey_authentication = serde_json::from_value::<PasskeyAuthentication>(session.data)?;
+        let credentials = serde_json::from_value::<PublicKeyCredential>(req.credentials)?;
 
         let result = self
             .webauthn
@@ -268,20 +271,15 @@ where
         })
     }
 
-    async fn prepare_session_data<T, U>(
-        &self,
+    fn prepare_session_data<T, U>(
         session_obj: T,
         options_obj: U,
     ) -> Result<(serde_json::Value, serde_json::Value), AppError>
     where
-        T: serde::Serialize + Send,
-        U: serde::Serialize + Send,
+        T: serde::Serialize,
+        U: serde::Serialize,
     {
-        let (session_data, opts) =
-            tokio::join!(async { serde_json::to_value(session_obj) }, async {
-                serde_json::to_value(options_obj)
-            });
-        Ok((session_data?, opts?))
+        Ok((serde_json::to_value(session_obj)?, serde_json::to_value(options_obj)?))
     }
 
     async fn create_session_response(
