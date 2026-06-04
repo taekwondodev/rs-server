@@ -16,10 +16,7 @@ use crate::auth::{
     jwt::{AccessTokenClaims, JwtService, RefreshTokenClaims},
 };
 use crate::config::{CircuitBreaker, JwtConfig};
-use crate::redis_delete;
-use crate::redis_exists;
-use crate::redis_set;
-use crate::utils::BaseRedisRepository;
+use crate::utils::{BaseRedisRepository, prometheus_observer};
 
 use super::queries;
 
@@ -101,7 +98,7 @@ impl Jwt {
                 jwt_config.issuer(),
                 jwt_config.audience(),
             ),
-            base: BaseRedisRepository::new(conn_manager, circuit_breaker),
+            base: BaseRedisRepository::new(conn_manager, circuit_breaker, prometheus_observer()),
         }
     }
 
@@ -235,11 +232,10 @@ impl JwtService for Jwt {
         let jti_owned = jti.to_owned();
 
         self.base
-            .execute_with_circuit_breaker(move |conn| async move {
-                let mut conn = conn.clone();
+            .execute_with_circuit_breaker("set", |mut conn| async move {
                 use redis::AsyncCommands;
-                let _: () = redis_set!({ conn.set_ex(&session_key, "1", ttl).await })?;
-                let _: () = redis_set!({ conn.set_ex(&family_key, &jti_owned, ttl).await })?;
+                let _: () = conn.set_ex(&session_key, "1", ttl).await?;
+                let _: () = conn.set_ex(&family_key, &jti_owned, ttl).await?;
                 Ok(())
             })
             .await
@@ -249,10 +245,9 @@ impl JwtService for Jwt {
         let session_key = queries::session::key(jti);
 
         self.base
-            .execute_with_circuit_breaker(move |conn| async move {
-                let mut conn = conn.clone();
+            .execute_with_circuit_breaker("exists", |mut conn| async move {
                 use redis::AsyncCommands;
-                let exists: bool = redis_exists!({ conn.exists(&session_key).await })?;
+                let exists: bool = conn.exists(&session_key).await?;
                 if exists {
                     Ok(())
                 } else {
@@ -269,10 +264,9 @@ impl JwtService for Jwt {
         let family_key = queries::session::family_key(family_id);
 
         self.base
-            .execute_with_circuit_breaker(move |conn| async move {
-                let mut conn = conn.clone();
+            .execute_with_circuit_breaker("delete", |mut conn| async move {
                 use redis::AsyncCommands;
-                let _: () = redis_delete!({ conn.del(&[&session_key, &family_key]).await })?;
+                let _: () = conn.del(&[&session_key, &family_key]).await?;
                 Ok(())
             })
             .await
@@ -282,10 +276,9 @@ impl JwtService for Jwt {
         let family_key = queries::session::family_key(family_id);
 
         self.base
-            .execute_with_circuit_breaker(move |conn| async move {
-                let mut conn = conn.clone();
+            .execute_with_circuit_breaker("delete", |mut conn| async move {
                 use redis::AsyncCommands;
-                let _: () = redis_delete!({ conn.del(&family_key).await })?;
+                let _: () = conn.del(&family_key).await?;
                 Ok(())
             })
             .await

@@ -55,10 +55,6 @@ For each warning from step 4, decide: use it or delete it. Don't suppress it. Th
 | Item | Location |
 |---|---|
 | `AdminClaims` extractor | `src/app/middleware/auth.rs` |
-| `execute_prepared` | `src/utils/` |
-| `execute_prepared_one` | `src/utils/` |
-| `execute_prepared_raw` | `src/utils/` |
-| `QueryBuilder` | `src/utils/` |
 | `AccessTokenClaims::sub/username/role` | `src/auth/jwt/claims.rs` — keep these once you add domain handlers that read the token |
 
 Run `cargo build` again. Zero warnings means the codebase is clean.

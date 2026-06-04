@@ -24,7 +24,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **Health Checks**: Comprehensive endpoint for monitoring service and dependency health
 
 ### Database & Caching
-- **PostgreSQL**: Type-safe queries with prepared statement caching
+- **PostgreSQL**: Type-safe queries with deadpool connection pooling
 - **Redis**: JWT session whitelist with token family tracking — self-cleaning via TTL, no background jobs
 - **Query Builders**: Optional dynamic SQL builders for complex operations
 - **Connection Pooling**: Efficient resource management with deadpool
