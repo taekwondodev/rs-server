@@ -11,9 +11,9 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct BeginRequest {
     #[schema(example = "john_doe", min_length = 3, max_length = 64)]
-    pub username: String,
+    pub username: Box<str>,
     #[schema(example = "admin")]
-    pub role: Option<String>,
+    pub role: Option<Box<str>>,
 }
 
 impl Validatable for BeginRequest {
@@ -30,9 +30,9 @@ impl Validatable for BeginRequest {
 #[serde(deny_unknown_fields)]
 pub struct FinishRequest {
     #[schema(example = "john_doe")]
-    pub username: String,
+    pub username: Box<str>,
     #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub session_id: String,
+    pub session_id: Box<str>,
     #[schema(example = json!({"id": "AQIDBAUGBwgJCgsMDQ4PEA", "rawId": "AQIDBAUGBwgJCgsMDQ4PEA", "type": "public-key"}))]
     pub credentials: serde_json::Value,
 }

@@ -5,18 +5,18 @@ use axum::{Json, http::StatusCode, response::IntoResponse};
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
     #[schema(example = "username must be at least 3 characters")]
-    pub message: String,
+    pub message: Box<str>,
 }
 
 #[derive(Debug)]
 pub enum AppError {
-    InternalServer(String),
-    NotFound(String),
-    AlreadyExists(String),
-    Unauthorized(String),
-    BadRequest(String),
-    ServiceUnavailable(String),
-    CircuitBreakerOpen(String),
+    InternalServer(Box<str>),
+    NotFound(&'static str),
+    AlreadyExists(&'static str),
+    Unauthorized(&'static str),
+    BadRequest(Box<str>),
+    ServiceUnavailable(Box<str>),
+    CircuitBreakerOpen(Box<str>),
 }
 
 impl fmt::Display for AppError {
@@ -50,41 +50,41 @@ impl IntoResponse for AppError {
                 tracing::warn!(error = %self, "unauthorized");
                 (StatusCode::UNAUTHORIZED, "Unauthorized")
             }
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
-            AppError::AlreadyExists(msg) => (StatusCode::CONFLICT, msg.as_str()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, *msg),
+            AppError::AlreadyExists(msg) => (StatusCode::CONFLICT, *msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_ref()),
         };
-        (status, Json(ErrorResponse { message: client_message.to_owned() })).into_response()
+        (status, Json(ErrorResponse { message: client_message.into() })).into_response()
     }
 }
 
 impl From<deadpool_postgres::PoolError> for AppError {
     fn from(value: deadpool_postgres::PoolError) -> Self {
-        AppError::InternalServer(value.to_string())
+        AppError::InternalServer(value.to_string().into())
     }
 }
 
 impl From<tokio_postgres::Error> for AppError {
     fn from(value: tokio_postgres::Error) -> Self {
-        AppError::InternalServer(value.to_string())
+        AppError::InternalServer(value.to_string().into())
     }
 }
 
 impl From<redis::RedisError> for AppError {
     fn from(value: redis::RedisError) -> Self {
-        AppError::InternalServer(value.to_string())
+        AppError::InternalServer(value.to_string().into())
     }
 }
 
 impl From<serde_json::Error> for AppError {
     fn from(value: serde_json::Error) -> Self {
-        AppError::InternalServer(value.to_string())
+        AppError::InternalServer(value.to_string().into())
     }
 }
 
 impl From<webauthn_rs::prelude::WebauthnError> for AppError {
     fn from(value: webauthn_rs::prelude::WebauthnError) -> Self {
-        AppError::InternalServer(value.to_string())
+        AppError::InternalServer(value.to_string().into())
     }
 }
 
@@ -95,25 +95,27 @@ impl From<uuid::Error> for AppError {
 }
 
 impl From<axum::extract::rejection::JsonRejection> for AppError {
-    fn from(value: axum::extract::rejection::JsonRejection) -> Self {
-        AppError::BadRequest(value.to_string())
+    fn from(_: axum::extract::rejection::JsonRejection) -> Self {
+        AppError::BadRequest("Malformed request body".into())
     }
 }
 
 impl From<jsonwebtoken::errors::Error> for AppError {
-    fn from(value: jsonwebtoken::errors::Error) -> Self {
-        AppError::Unauthorized(value.to_string())
+    fn from(_: jsonwebtoken::errors::Error) -> Self {
+        AppError::Unauthorized("Invalid token")
     }
 }
 
 impl From<rs_repository_utils::RepositoryError> for AppError {
     fn from(e: rs_repository_utils::RepositoryError) -> Self {
         match e {
-            rs_repository_utils::RepositoryError::InvalidQuery(msg) => AppError::BadRequest(msg),
-            rs_repository_utils::RepositoryError::CircuitBreakerOpen(msg) => {
-                AppError::CircuitBreakerOpen(msg)
+            rs_repository_utils::RepositoryError::InvalidQuery(_) => {
+                AppError::BadRequest("Invalid query parameters".into())
             }
-            _ => AppError::InternalServer(e.to_string()),
+            rs_repository_utils::RepositoryError::CircuitBreakerOpen(msg) => {
+                AppError::CircuitBreakerOpen(msg.into())
+            }
+            _ => AppError::InternalServer(e.to_string().into()),
         }
     }
 }

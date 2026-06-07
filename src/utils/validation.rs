@@ -48,7 +48,7 @@ const MAX_ROLE_LEN: usize = 32;
 #[inline]
 pub fn validate_text(text: &str, field: &str) -> Result<(), AppError> {
     if text.trim().is_empty() {
-        return Err(AppError::BadRequest(format!("{} cannot be empty", field)));
+        return Err(AppError::BadRequest(format!("{} cannot be empty", field).into()));
     }
     Ok(())
 }
@@ -59,9 +59,9 @@ pub fn validate_username(username: &str) -> Result<(), AppError> {
         return Err(AppError::BadRequest("Username cannot be empty".into()));
     }
     if username.len() > MAX_USERNAME_LEN {
-        return Err(AppError::BadRequest(format!(
-            "Username must be at most {MAX_USERNAME_LEN} characters"
-        )));
+        return Err(AppError::BadRequest(
+            format!("Username must be at most {MAX_USERNAME_LEN} characters").into(),
+        ));
     }
     if username.trim().len() < 3 {
         return Err(AppError::BadRequest(
@@ -85,9 +85,9 @@ pub fn validate_role(role: &str) -> Result<(), AppError> {
         return Err(AppError::BadRequest("Role cannot be empty".into()));
     }
     if role.len() > MAX_ROLE_LEN {
-        return Err(AppError::BadRequest(format!(
-            "Role must be at most {MAX_ROLE_LEN} characters"
-        )));
+        return Err(AppError::BadRequest(
+            format!("Role must be at most {MAX_ROLE_LEN} characters").into(),
+        ));
     }
     if !role.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(AppError::BadRequest(

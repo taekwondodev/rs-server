@@ -92,13 +92,13 @@ fn test_are_subdomains_of_same_base_vs_subdomain() {
 #[test]
 fn test_get_base_domain_valid() {
     let base = CookieService::get_base_domain("api.example.com", "app.example.com");
-    assert_eq!(base, Some("example.com".to_string()));
+    assert_eq!(base.as_deref(), Some("example.com"));
 }
 
 #[test]
 fn test_get_base_domain_with_www() {
     let base = CookieService::get_base_domain("www.api.example.com", "www.app.example.com");
-    assert_eq!(base, Some("example.com".to_string()));
+    assert_eq!(base.as_deref(), Some("example.com"));
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_get_base_domain_single_part() {
 #[test]
 fn test_get_base_domain_three_level_subdomain() {
     let base = CookieService::get_base_domain("v1.api.example.com", "v2.api.example.com");
-    assert_eq!(base, Some("example.com".to_string()));
+    assert_eq!(base.as_deref(), Some("example.com"));
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn test_determine_cookie_domain_localhost() {
 fn test_determine_cookie_domain_subdomains() {
     let origin_config = create_test_origin_config("https://app.example.com", "api.example.com");
     let domain = CookieService::determine_cookie_domain(&origin_config, false);
-    assert_eq!(domain, Some(".example.com".to_string()));
+    assert_eq!(domain.as_deref(), Some(".example.com"));
 }
 
 #[test]

@@ -13,12 +13,12 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessTokenClaims {
-    pub iss: String,
-    pub aud: String,
+    pub iss: Box<str>,
+    pub aud: Box<str>,
     pub sub: Uuid,
-    pub username: String,
+    pub username: Box<str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub role: Option<String>,
+    pub role: Option<Box<str>>,
     pub iat: i64,
     pub exp: i64,
 }
@@ -36,11 +36,11 @@ impl AccessTokenClaims {
         let exp = now + chrono::Duration::from_std(duration).unwrap();
 
         Self {
-            iss: issuer.to_owned(),
-            aud: audience.to_owned(),
+            iss: issuer.into(),
+            aud: audience.into(),
             sub: user_id,
-            username,
-            role,
+            username: username.into_boxed_str(),
+            role: role.map(String::into_boxed_str),
             iat: now.timestamp(),
             exp: exp.timestamp(),
         }
@@ -80,14 +80,14 @@ impl AccessTokenClaims {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshTokenClaims {
-    pub iss: String,
-    pub aud: String,
+    pub iss: Box<str>,
+    pub aud: Box<str>,
     pub sub: Uuid,
-    pub username: String,
+    pub username: Box<str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub role: Option<String>,
-    pub jti: String,
-    pub family_id: String,
+    pub role: Option<Box<str>>,
+    pub jti: Box<str>,
+    pub family_id: Box<str>,
     pub iat: i64,
     pub exp: i64,
 }
@@ -106,13 +106,15 @@ impl RefreshTokenClaims {
         let exp = now + chrono::Duration::from_std(duration).unwrap();
 
         Self {
-            iss: issuer.to_owned(),
-            aud: audience.to_owned(),
+            iss: issuer.into(),
+            aud: audience.into(),
             sub: user_id,
-            username,
-            role,
+            username: username.into_boxed_str(),
+            role: role.map(String::into_boxed_str),
             jti: Self::generate_jti(),
-            family_id: family_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+            family_id: family_id
+                .unwrap_or_else(|| Uuid::new_v4().to_string())
+                .into_boxed_str(),
             iat: now.timestamp(),
             exp: exp.timestamp(),
         }
@@ -129,9 +131,7 @@ impl RefreshTokenClaims {
             Ok(()) => Ok(claims),
             Err(_) => {
                 let _ = jwt.revoke_family(claims.family_id()).await;
-                Err(AppError::Unauthorized(
-                    "Session not found or token reused".to_string(),
-                ))
+                Err(AppError::Unauthorized("Session not found or token reused"))
             }
         }
     }
@@ -163,8 +163,8 @@ impl RefreshTokenClaims {
         &self.family_id
     }
 
-    fn generate_jti() -> String {
+    fn generate_jti() -> Box<str> {
         let uuid = Uuid::new_v4();
-        BASE64_URL_SAFE_NO_PAD.encode(uuid.as_bytes())
+        BASE64_URL_SAFE_NO_PAD.encode(uuid.as_bytes()).into_boxed_str()
     }
 }

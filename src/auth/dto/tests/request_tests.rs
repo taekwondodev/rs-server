@@ -7,8 +7,8 @@ use crate::{
 #[test]
 fn test_begin_request_valid() {
     let request = BeginRequest {
-        username: "john_doe".to_string(),
-        role: Some("admin".to_string()),
+        username: "john_doe".into(),
+        role: Some("admin".into()),
     };
     let result = request.validate();
     assert!(result.is_ok());
@@ -17,7 +17,7 @@ fn test_begin_request_valid() {
 #[test]
 fn test_begin_request_valid_without_role() {
     let request = BeginRequest {
-        username: "john_doe".to_string(),
+        username: "john_doe".into(),
         role: None,
     };
     let result = request.validate();
@@ -27,7 +27,7 @@ fn test_begin_request_valid_without_role() {
 #[test]
 fn test_begin_request_valid_minimum_username() {
     let request = BeginRequest {
-        username: "abc".to_string(),
+        username: "abc".into(),
         role: None,
     };
     let result = request.validate();
@@ -37,14 +37,14 @@ fn test_begin_request_valid_minimum_username() {
 #[test]
 fn test_begin_request_username_too_short() {
     let request = BeginRequest {
-        username: "ab".to_string(),
+        username: "ab".into(),
         role: None,
     };
     let result = request.validate();
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username must be at least 3 characters");
+            assert_eq!(&*msg, "Username must be at least 3 characters");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -53,14 +53,14 @@ fn test_begin_request_username_too_short() {
 #[test]
 fn test_begin_request_username_empty() {
     let request = BeginRequest {
-        username: String::new(),
+        username: "".into(),
         role: None,
     };
     let result = request.validate();
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username cannot be empty");
+            assert_eq!(&*msg, "Username cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -69,14 +69,14 @@ fn test_begin_request_username_empty() {
 #[test]
 fn test_begin_request_username_only_whitespace() {
     let request = BeginRequest {
-        username: "   ".to_string(),
+        username: "   ".into(),
         role: None,
     };
     let result = request.validate();
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username cannot be empty");
+            assert_eq!(&*msg, "Username cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -91,8 +91,8 @@ fn test_finish_request_valid() {
     });
 
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
     };
 
@@ -108,8 +108,8 @@ fn test_finish_request_username_empty() {
     });
 
     let request = FinishRequest {
-        username: String::new(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
     };
 
@@ -125,8 +125,8 @@ fn test_finish_request_username_too_short() {
     });
 
     let request = FinishRequest {
-        username: "ab".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "ab".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
     };
 
@@ -142,8 +142,8 @@ fn test_finish_request_session_id_empty() {
     });
 
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: String::new(),
+        username: "john_doe".into(),
+        session_id: "".into(),
         credentials,
     };
 
@@ -151,7 +151,7 @@ fn test_finish_request_session_id_empty() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Session ID cannot be empty");
+            assert_eq!(&*msg, "Session ID cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -165,8 +165,8 @@ fn test_finish_request_session_id_whitespace() {
     });
 
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "   ".to_string(),
+        username: "john_doe".into(),
+        session_id: "   ".into(),
         credentials,
     };
 
@@ -177,8 +177,8 @@ fn test_finish_request_session_id_whitespace() {
 #[test]
 fn test_finish_request_credentials_null() {
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!(null),
     };
 
@@ -186,7 +186,7 @@ fn test_finish_request_credentials_null() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -195,8 +195,8 @@ fn test_finish_request_credentials_null() {
 #[test]
 fn test_finish_request_credentials_not_object() {
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!("not_an_object"),
     };
 
@@ -204,7 +204,7 @@ fn test_finish_request_credentials_not_object() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -213,8 +213,8 @@ fn test_finish_request_credentials_not_object() {
 #[test]
 fn test_finish_request_credentials_empty_object() {
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!({}),
     };
 
@@ -222,7 +222,7 @@ fn test_finish_request_credentials_empty_object() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -231,8 +231,8 @@ fn test_finish_request_credentials_empty_object() {
 #[test]
 fn test_finish_request_credentials_array() {
     let request = FinishRequest {
-        username: "john_doe".to_string(),
-        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!([1, 2, 3]),
     };
 
@@ -243,8 +243,8 @@ fn test_finish_request_credentials_array() {
 #[test]
 fn test_finish_request_all_fields_invalid() {
     let request = FinishRequest {
-        username: String::new(),
-        session_id: String::new(),
+        username: "".into(),
+        session_id: "".into(),
         credentials: serde_json::json!(null),
     };
 
@@ -257,7 +257,7 @@ fn test_finish_request_all_fields_invalid() {
 #[test]
 fn test_begin_request_username_too_long() {
     let request = BeginRequest {
-        username: "a".repeat(65),
+        username: "a".repeat(65).into(),
         role: None,
     };
     match request.validate() {
@@ -269,7 +269,7 @@ fn test_begin_request_username_too_long() {
 #[test]
 fn test_begin_request_username_at_max_length() {
     let request = BeginRequest {
-        username: "a".repeat(64),
+        username: "a".repeat(64).into(),
         role: None,
     };
     assert!(request.validate().is_ok());
@@ -280,7 +280,7 @@ fn test_begin_request_username_at_max_length() {
 #[test]
 fn test_begin_request_username_html_chars_rejected() {
     let request = BeginRequest {
-        username: "<script>".to_string(),
+        username: "<script>".into(),
         role: None,
     };
     match request.validate() {
@@ -292,7 +292,7 @@ fn test_begin_request_username_html_chars_rejected() {
 #[test]
 fn test_begin_request_username_space_rejected() {
     let request = BeginRequest {
-        username: "john doe".to_string(),
+        username: "john doe".into(),
         role: None,
     };
     match request.validate() {
@@ -304,7 +304,7 @@ fn test_begin_request_username_space_rejected() {
 #[test]
 fn test_begin_request_username_valid_chars() {
     for username in ["john_doe", "John-Doe", "user123", "a-b_c"] {
-        let request = BeginRequest { username: username.to_string(), role: None };
+        let request = BeginRequest { username: (*username).into(), role: None };
         assert!(request.validate().is_ok(), "Expected valid: {username}");
     }
 }
@@ -314,8 +314,8 @@ fn test_begin_request_username_valid_chars() {
 #[test]
 fn test_begin_request_role_valid() {
     let request = BeginRequest {
-        username: "alice".to_string(),
-        role: Some("admin".to_string()),
+        username: "alice".into(),
+        role: Some("admin".into()),
     };
     assert!(request.validate().is_ok());
 }
@@ -323,7 +323,7 @@ fn test_begin_request_role_valid() {
 #[test]
 fn test_begin_request_role_none_valid() {
     let request = BeginRequest {
-        username: "alice".to_string(),
+        username: "alice".into(),
         role: None,
     };
     assert!(request.validate().is_ok());
@@ -332,8 +332,8 @@ fn test_begin_request_role_none_valid() {
 #[test]
 fn test_begin_request_role_too_long() {
     let request = BeginRequest {
-        username: "alice".to_string(),
-        role: Some("a".repeat(33)),
+        username: "alice".into(),
+        role: Some("a".repeat(33).into()),
     };
     match request.validate() {
         Err(AppError::BadRequest(msg)) => assert!(msg.contains("at most 32")),
@@ -344,8 +344,8 @@ fn test_begin_request_role_too_long() {
 #[test]
 fn test_begin_request_role_invalid_chars() {
     let request = BeginRequest {
-        username: "alice".to_string(),
-        role: Some("admin@root".to_string()),
+        username: "alice".into(),
+        role: Some("admin@root".into()),
     };
     match request.validate() {
         Err(AppError::BadRequest(msg)) => assert!(msg.contains("invalid characters")),
@@ -356,8 +356,8 @@ fn test_begin_request_role_invalid_chars() {
 #[test]
 fn test_begin_request_role_empty_string_rejected() {
     let request = BeginRequest {
-        username: "alice".to_string(),
-        role: Some(String::new()),
+        username: "alice".into(),
+        role: Some("".into()),
     };
     assert!(request.validate().is_err());
 }

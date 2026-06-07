@@ -30,10 +30,10 @@ fn access_claims_fields_set_correctly() {
     );
 
     assert_eq!(claims.sub, id);
-    assert_eq!(claims.username, username);
+    assert_eq!(claims.username.as_ref(), username);
     assert_eq!(claims.role.as_deref(), role);
-    assert_eq!(claims.iss, ISSUER);
-    assert_eq!(claims.aud, AUDIENCE);
+    assert_eq!(claims.iss.as_ref(), ISSUER);
+    assert_eq!(claims.aud.as_ref(), AUDIENCE);
     assert!(claims.exp > claims.iat);
 }
 
@@ -70,10 +70,10 @@ async fn access_token_roundtrip_preserves_claims() {
     let decoded = AccessTokenClaims::validate(&c, &token).await.unwrap();
 
     assert_eq!(decoded.sub, id);
-    assert_eq!(decoded.username, username);
+    assert_eq!(decoded.username.as_ref(), username);
     assert_eq!(decoded.role.as_deref(), role);
-    assert_eq!(decoded.iss, ISSUER);
-    assert_eq!(decoded.aud, AUDIENCE);
+    assert_eq!(decoded.iss.as_ref(), ISSUER);
+    assert_eq!(decoded.aud.as_ref(), AUDIENCE);
 }
 
 // --- OWASP: Authentication token validation ---
@@ -227,7 +227,7 @@ fn refresh_claims_preserves_provided_family_id() {
         AUDIENCE,
         Duration::from_secs(300),
     );
-    assert_eq!(claims.family_id, family);
+    assert_eq!(claims.family_id.as_ref(), family);
 }
 
 #[test]

@@ -6,7 +6,7 @@ use crate::app::error::{AppError, ErrorResponse};
 async fn extract_message(err: AppError) -> String {
     let response = err.into_response();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    serde_json::from_slice::<ErrorResponse>(&bytes).unwrap().message
+    serde_json::from_slice::<ErrorResponse>(&bytes).unwrap().message.to_string()
 }
 
 async fn extract_status(err: AppError) -> u16 {

@@ -2,13 +2,13 @@ use axum::Router;
 use tokio::net::TcpListener;
 
 pub struct ServerConfig {
-    pub bind_addr: String,
+    pub bind_addr: Box<str>,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            bind_addr: "0.0.0.0:8080".to_owned(),
+            bind_addr: "0.0.0.0:8080".into(),
         }
     }
 }

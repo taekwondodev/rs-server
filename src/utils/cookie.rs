@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use time::Duration;
 
@@ -12,8 +14,8 @@ pub const REFRESH_TOKEN_COOKIE_NAME: &str = "refresh_token";
 pub struct CookieService {
     pub secure: bool,
     pub same_site: SameSite,
-    pub domain: Option<String>,
-    pub path: String,
+    pub domain: Option<Box<str>>,
+    pub path: &'static str,
     pub http_only: bool,
     pub max_age: Duration,
 }
@@ -28,7 +30,7 @@ impl CookieService {
             secure: is_https,
             same_site: Self::determine_same_site(is_https, is_local),
             domain: Self::determine_cookie_domain(origin_config, is_local),
-            path: String::from(PATH),
+            path: PATH,
             http_only: HTTP_ONLY,
             max_age: MAX_AGE,
         }
@@ -41,12 +43,10 @@ impl CookieService {
     pub fn get_refresh_token_from_jar(
         &self,
         jar: &axum_extra::extract::CookieJar,
-    ) -> Result<String, AppError> {
+    ) -> Result<Box<str>, AppError> {
         jar.get(REFRESH_TOKEN_COOKIE_NAME)
-            .map(|cookie| cookie.value().to_owned())
-            .ok_or_else(|| {
-                AppError::Unauthorized(String::from("Refresh token not found in cookies"))
-            })
+            .map(|cookie| cookie.value().into())
+            .ok_or(AppError::Unauthorized("Refresh token not found in cookies"))
     }
 
     pub fn clear_refresh_token_cookie(&self) -> Cookie<'static> {
@@ -59,7 +59,7 @@ impl CookieService {
         V: Into<String>,
     {
         let mut cookie_builder = Cookie::build((name.into(), value.into()))
-            .path(self.path.clone())
+            .path(self.path)
             .http_only(self.http_only)
             .secure(self.secure)
             .same_site(self.same_site);
@@ -69,7 +69,7 @@ impl CookieService {
         }
 
         if let Some(ref domain) = self.domain {
-            cookie_builder = cookie_builder.domain(domain.clone());
+            cookie_builder = cookie_builder.domain(domain.to_string());
         }
 
         cookie_builder.build()
@@ -88,7 +88,7 @@ impl CookieService {
     pub(crate) fn determine_cookie_domain(
         origin_config: &OriginConfig,
         is_local: bool,
-    ) -> Option<String> {
+    ) -> Option<Box<str>> {
         if is_local {
             return None;
         }
@@ -99,7 +99,7 @@ impl CookieService {
         if Self::are_subdomains_of_same(frontend_domain, backend_domain)
             && let Some(base_domain) = Self::get_base_domain(frontend_domain, backend_domain)
         {
-            return Some(format!(".{}", base_domain));
+            return Some(format!(".{}", base_domain).into());
         }
 
         None
@@ -127,7 +127,7 @@ impl CookieService {
         base1 == base2
     }
 
-    pub(crate) fn get_base_domain(domain1: &str, domain2: &str) -> Option<String> {
+    pub(crate) fn get_base_domain(domain1: &str, domain2: &str) -> Option<Box<str>> {
         let domain1 = Self::normalize_domain(domain1);
         let domain2 = Self::normalize_domain(domain2);
 
@@ -139,14 +139,17 @@ impl CookieService {
             let base2 = format!("{}.{}", parts2[parts2.len() - 2], parts2[parts2.len() - 1]);
 
             if base1 == base2 {
-                return Some(base1);
+                return Some(base1.into());
             }
         }
 
         None
     }
 
-    pub(crate) fn normalize_domain(domain: &str) -> String {
-        domain.strip_prefix("www.").unwrap_or(domain).to_string()
+    pub(crate) fn normalize_domain(domain: &str) -> Cow<'_, str> {
+        match domain.strip_prefix("www.") {
+            Some(stripped) => Cow::Borrowed(stripped),
+            None => Cow::Borrowed(domain),
+        }
     }
 }

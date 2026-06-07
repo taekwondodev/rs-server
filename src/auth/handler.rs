@@ -137,7 +137,7 @@ pub async fn refresh(
     State(state): State<Arc<AppState>>,
 ) -> Result<(CookieJar, TokenResponse), AppError> {
     let refresh_token = state.cookie_service.get_refresh_token_from_jar(&jar)?;
-    let result = state.auth_service.refresh(refresh_token.as_str()).await;
+    let result = state.auth_service.refresh(&refresh_token).await;
     metrics::track_token_operation("refresh", result.is_ok());
     let (response, new_refresh_token) = result?;
 
@@ -169,7 +169,7 @@ pub async fn logout(
         .cookie_service
         .get_refresh_token_from_jar(&jar)
         .unwrap_or_default();
-    let response = state.auth_service.logout(refresh_token.as_str()).await;
+    let response = state.auth_service.logout(&refresh_token).await;
     metrics::track_token_operation("logout", response.is_ok());
 
     let clear_cookie = state.cookie_service.clear_refresh_token_cookie();

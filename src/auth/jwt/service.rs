@@ -25,16 +25,16 @@ const REFRESH_TOKEN_DURATION: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug)]
 pub struct TokenPair {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub refresh_jti: String,
-    pub refresh_family_id: String,
+    pub access_token: Box<str>,
+    pub refresh_token: Box<str>,
+    pub refresh_jti: Box<str>,
+    pub refresh_family_id: Box<str>,
     pub refresh_exp: i64,
 }
 
 pub(crate) struct JwtCrypto {
-    pub issuer: String,
-    pub audience: String,
+    pub issuer: Box<str>,
+    pub audience: Box<str>,
     pub access_encoding_key: EncodingKey,
     pub access_decoding_key: DecodingKey,
     pub refresh_encoding_key: EncodingKey,
@@ -69,8 +69,8 @@ impl JwtCrypto {
         let refresh_decoding_key = DecodingKey::from_secret(&refresh_key_bytes);
 
         Self {
-            issuer: issuer.to_owned(),
-            audience: audience.to_owned(),
+            issuer: issuer.into(),
+            audience: audience.into(),
             access_encoding_key,
             access_decoding_key,
             refresh_encoding_key,
@@ -128,8 +128,8 @@ impl Jwt {
             self.crypto.refresh_token_duration,
         );
 
-        let access_token = access_claims.to_token(&self.crypto);
-        let refresh_token = refresh_claims.to_token(&self.crypto);
+        let access_token = access_claims.to_token(&self.crypto).into_boxed_str();
+        let refresh_token = refresh_claims.to_token(&self.crypto).into_boxed_str();
         let refresh_jti = refresh_claims.jti;
         let refresh_family_id = refresh_claims.family_id;
         let refresh_exp = refresh_claims.exp;
@@ -251,9 +251,7 @@ impl JwtService for Jwt {
                 if exists {
                     Ok(())
                 } else {
-                    Err(AppError::Unauthorized(
-                        "Session not found or expired".to_string(),
-                    ))
+                    Err(AppError::Unauthorized("Session not found or expired"))
                 }
             })
             .await

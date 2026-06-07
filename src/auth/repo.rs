@@ -82,10 +82,8 @@ impl AuthRepository for Repository {
                 let user = User::from_row(&row).map_err(AppError::from)?;
 
                 if conflicted {
-                    if user.status == "active" {
-                        return Err(AppError::AlreadyExists(
-                            "Username already exists".to_string(),
-                        ));
+                    if &*user.status == "active" {
+                        return Err(AppError::AlreadyExists("Username already exists"));
                     }
                     return Ok(RegistrationOutcome::Resumed(user));
                 }
@@ -117,7 +115,7 @@ impl AuthRepository for Repository {
                         let session = WebAuthnSession::from_row(&row)?;
                         Ok((user, session))
                     }
-                    None => Err(AppError::NotFound("User or session not found".to_string())),
+                    None => Err(AppError::NotFound("User or session not found")),
                 }
             })
             .await
@@ -136,9 +134,7 @@ impl AuthRepository for Repository {
                     .await?;
 
                 if rows.is_empty() {
-                    return Err(AppError::NotFound(
-                        "User or credentials not found".to_string(),
-                    ));
+                    return Err(AppError::NotFound("User or credentials not found"));
                 }
 
                 let user = User::from_row(&rows[0])?;
@@ -191,7 +187,7 @@ impl AuthRepository for Repository {
                     .await?;
 
                 if result == 0 {
-                    return Err(AppError::NotFound("Session not found".to_string()));
+                    return Err(AppError::NotFound("Session not found"));
                 }
 
                 Ok(())
@@ -212,7 +208,7 @@ impl AuthRepository for Repository {
                     .await?;
 
                 if result == 0 {
-                    return Err(AppError::NotFound("Credential not found".to_string()));
+                    return Err(AppError::NotFound("Credential not found"));
                 }
 
                 Ok(())

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -109,7 +110,7 @@ where
         .emit();
 
         Ok(MessageResponse {
-            message: String::from("Registration completed successfully!"),
+            message: Cow::Borrowed("Registration completed successfully!"),
         })
     }
 
@@ -129,7 +130,7 @@ where
     pub async fn finish_login(
         &self,
         req: FinishRequest,
-    ) -> Result<(TokenResponse, String), AppError> {
+    ) -> Result<(TokenResponse, Box<str>), AppError> {
         let (session_id, user, session) = self
             .get_user_and_session(&req.session_id, &req.username, "login")
             .await?;
@@ -178,14 +179,14 @@ where
 
         Ok((
             TokenResponse {
-                message: String::from("Login completed successfully!"),
+                message: Cow::Borrowed("Login completed successfully!"),
                 access_token: token_pair.access_token,
             },
             token_pair.refresh_token,
         ))
     }
 
-    pub async fn refresh(&self, refresh_token: &str) -> Result<(TokenResponse, String), AppError> {
+    pub async fn refresh(&self, refresh_token: &str) -> Result<(TokenResponse, Box<str>), AppError> {
         let claims = self.jwt_service.validate_refresh(refresh_token).await?;
 
         self.jwt_service
@@ -209,7 +210,7 @@ where
 
         Ok((
             TokenResponse {
-                message: String::from("Refresh completed successfully!"),
+                message: Cow::Borrowed("Refresh completed successfully!"),
                 access_token: token_pair.access_token,
             },
             token_pair.refresh_token,
@@ -219,7 +220,7 @@ where
     pub async fn logout(&self, refresh_token: &str) -> Result<MessageResponse, AppError> {
         if refresh_token.is_empty() {
             return Ok(MessageResponse {
-                message: String::from("Logout completed successfully!"),
+                message: Cow::Borrowed("Logout completed successfully!"),
             });
         }
 
@@ -234,7 +235,7 @@ where
         }
 
         Ok(MessageResponse {
-            message: String::from("Logout completed successfully!"),
+            message: Cow::Borrowed("Logout completed successfully!"),
         })
     }
 
@@ -256,14 +257,13 @@ where
                 error_details.push(format!("Redis: {}", redis_health.message));
             }
 
-            return Err(AppError::ServiceUnavailable(format!(
-                "One or more services are unhealthy: {}",
-                error_details.join(", ")
-            )));
+            return Err(AppError::ServiceUnavailable(
+                format!("One or more services are unhealthy: {}", error_details.join(", ")).into(),
+            ));
         }
 
         Ok(HealthResponse {
-            timestamp,
+            timestamp: timestamp.into_boxed_str(),
             checks: HealthChecks {
                 database: db_health,
                 redis: redis_health,
@@ -296,7 +296,7 @@ where
 
         Ok(BeginResponse {
             options: opts,
-            session_id: String::from(session_id),
+            session_id: session_id.to_string().into_boxed_str(),
         })
     }
 

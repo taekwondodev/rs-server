@@ -18,7 +18,7 @@ fn test_validate_text_empty() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Field cannot be empty");
+            assert_eq!(&*msg, "Field cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -30,7 +30,7 @@ fn test_validate_text_only_whitespace() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Field cannot be empty");
+            assert_eq!(&*msg, "Field cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -54,7 +54,7 @@ fn test_validate_username_too_short() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username must be at least 3 characters");
+            assert_eq!(&*msg, "Username must be at least 3 characters");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -66,7 +66,7 @@ fn test_validate_username_empty() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username cannot be empty");
+            assert_eq!(&*msg, "Username cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -78,7 +78,7 @@ fn test_validate_username_only_whitespace() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username cannot be empty");
+            assert_eq!(&*msg, "Username cannot be empty");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -90,7 +90,7 @@ fn test_validate_username_three_chars_with_spaces() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Username must be at least 3 characters");
+            assert_eq!(&*msg, "Username must be at least 3 characters");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -113,7 +113,7 @@ fn test_validate_json_credentials_null() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -126,7 +126,7 @@ fn test_validate_json_credentials_not_object() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -139,7 +139,7 @@ fn test_validate_json_credentials_array() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }
@@ -152,7 +152,7 @@ fn test_validate_json_credentials_empty_object() {
     assert!(result.is_err());
     match result {
         Err(AppError::BadRequest(msg)) => {
-            assert_eq!(msg, "Invalid credentials");
+            assert_eq!(&*msg, "Invalid credentials");
         }
         _ => panic!("Expected BadRequest error"),
     }

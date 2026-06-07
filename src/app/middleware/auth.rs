@@ -58,9 +58,7 @@ impl FromRequestParts<Arc<AppState>> for AdminClaims {
                     user_id: claims.sub,
                 }
                 .emit();
-                Err(AppError::Unauthorized(String::from(
-                    "Admin access required",
-                )))
+                Err(AppError::Unauthorized("Admin access required"))
             }
         }
     }
@@ -79,12 +77,12 @@ fn extract_auth_header(parts: &Parts) -> Result<&str, AppError> {
         .headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| AppError::Unauthorized(UNAUTHORIZED_MESSAGE.to_string()))
+        .ok_or_else(|| AppError::Unauthorized(UNAUTHORIZED_MESSAGE))
 }
 
 fn is_bearer_token(auth_header: &str) -> Result<(), AppError> {
     if !auth_header.starts_with(BEARER_PREFIX) {
-        return Err(AppError::Unauthorized(UNAUTHORIZED_MESSAGE.to_string()));
+        return Err(AppError::Unauthorized(UNAUTHORIZED_MESSAGE));
     }
 
     Ok(())
