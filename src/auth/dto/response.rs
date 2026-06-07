@@ -95,7 +95,7 @@ impl From<rs_repository_utils::ServiceHealth> for ServiceHealth {
     fn from(s: rs_repository_utils::ServiceHealth) -> Self {
         Self {
             status: s.status.into(),
-            message: s.message.into_boxed_str(),
+            message: s.message,
             response_time_ms: s.response_time_ms,
         }
     }

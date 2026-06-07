@@ -2067,7 +2067,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 [[package]]
 name = "rs-repository-utils"
 version = "0.1.0"
-source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#b978bc39abea50260eed8bb842a2dcec6142f1fe"
+source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#b416f07cf8eca6741cb9b4be0deeb449ceb97e00"
 dependencies = [
  "deadpool-postgres",
  "failsafe",
