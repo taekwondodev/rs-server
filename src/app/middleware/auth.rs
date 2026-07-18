@@ -77,7 +77,7 @@ fn extract_auth_header(parts: &Parts) -> Result<&str, AppError> {
         .headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| AppError::Unauthorized(UNAUTHORIZED_MESSAGE))
+        .ok_or(AppError::Unauthorized(UNAUTHORIZED_MESSAGE))
 }
 
 fn is_bearer_token(auth_header: &str) -> Result<(), AppError> {

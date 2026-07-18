@@ -114,7 +114,7 @@ impl From<rs_repository_utils::RepositoryError> for AppError {
                 AppError::BadRequest("Invalid query parameters".into())
             }
             rs_repository_utils::RepositoryError::CircuitBreakerOpen(msg) => {
-                AppError::CircuitBreakerOpen(msg.into())
+                AppError::CircuitBreakerOpen(msg)
             }
             _ => AppError::InternalServer(e.to_string().into()),
         }

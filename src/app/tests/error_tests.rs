@@ -28,7 +28,7 @@ async fn internal_server_hides_detail() {
 #[tokio::test]
 async fn unauthorized_hides_jwt_detail() {
     let detail = "ExpiredSignature: token expired at 2024-01-01T00:00:00Z";
-    let msg = extract_message(AppError::Unauthorized(detail.into())).await;
+    let msg = extract_message(AppError::Unauthorized(detail)).await;
     assert_eq!(msg, "Unauthorized");
     assert!(!msg.contains("ExpiredSignature"));
     assert!(!msg.contains("2024"));
@@ -54,13 +54,13 @@ async fn circuit_breaker_open_hides_detail() {
 
 #[tokio::test]
 async fn not_found_passes_safe_message() {
-    let msg = extract_message(AppError::NotFound("user not found".into())).await;
+    let msg = extract_message(AppError::NotFound("user not found")).await;
     assert_eq!(msg, "user not found");
 }
 
 #[tokio::test]
 async fn already_exists_passes_safe_message() {
-    let msg = extract_message(AppError::AlreadyExists("username already taken".into())).await;
+    let msg = extract_message(AppError::AlreadyExists("username already taken")).await;
     assert_eq!(msg, "username already taken");
 }
 
@@ -87,9 +87,9 @@ async fn uuid_error_gives_safe_bad_request() {
 #[tokio::test]
 async fn status_codes_correct() {
     assert_eq!(extract_status(AppError::InternalServer("x".into())).await, 500);
-    assert_eq!(extract_status(AppError::NotFound("x".into())).await, 404);
-    assert_eq!(extract_status(AppError::AlreadyExists("x".into())).await, 409);
-    assert_eq!(extract_status(AppError::Unauthorized("x".into())).await, 401);
+    assert_eq!(extract_status(AppError::NotFound("x")).await, 404);
+    assert_eq!(extract_status(AppError::AlreadyExists("x")).await, 409);
+    assert_eq!(extract_status(AppError::Unauthorized("x")).await, 401);
     assert_eq!(extract_status(AppError::BadRequest("x".into())).await, 400);
     assert_eq!(extract_status(AppError::ServiceUnavailable("x".into())).await, 503);
     assert_eq!(extract_status(AppError::CircuitBreakerOpen("x".into())).await, 503);
