@@ -1,40 +1,17 @@
 pub mod users {
-    pub const UPSERT: &str = "INSERT INTO users (username, role)
-         VALUES ($1, $2)
-         ON CONFLICT (username) DO UPDATE SET updated_at = users.updated_at
-         RETURNING *, (xmax::text::bigint <> 0) AS conflicted";
-
-    pub const UPDATE_STATUS_ACTIVE: &str = "UPDATE users SET status = 'active' WHERE username = $1";
-
-    pub const SELECT_WITH_SESSION: &str = "SELECT u.id, u.username, u.role, u.status,
-                u.created_at, u.updated_at, u.is_active,
-                ws.id as session_id, ws.user_id, ws.data, ws.purpose,
-                ws.created_at as session_created_at, ws.expires_at
-         FROM users u
-         INNER JOIN webauthn_sessions ws ON u.id = ws.user_id
-         WHERE u.username = $1 AND ws.id = $2 AND ws.purpose = $3";
-
-    pub const SELECT_ACTIVE_WITH_CREDENTIALS: &str = "SELECT u.id, u.username, u.role, u.status,
-                u.created_at, u.updated_at, u.is_active,
-                c.passkey
-         FROM users u
-         INNER JOIN credentials c ON u.id = c.user_id
-         WHERE u.username = $1 AND u.status = 'active'";
+    pub const UPSERT: &str = include_str!("sql/users_upsert.sql");
+    pub const UPDATE_STATUS_ACTIVE: &str = include_str!("sql/users_update_status_active.sql");
+    pub const SELECT_WITH_SESSION: &str = include_str!("sql/users_select_with_session.sql");
+    pub const SELECT_ACTIVE_WITH_CREDENTIALS: &str =
+        include_str!("sql/users_select_active_with_credentials.sql");
 }
 
 pub mod credentials {
-    pub const INSERT: &str = "INSERT INTO credentials (id, user_id, passkey)
-         VALUES ($1, $2, $3)";
-
-    pub const UPDATE_COUNTER: &str = "UPDATE credentials
-         SET passkey = jsonb_set(passkey, '{counter}', $1::text::jsonb)
-         WHERE id = $2";
+    pub const INSERT: &str = include_str!("sql/credentials_insert.sql");
+    pub const UPDATE_COUNTER: &str = include_str!("sql/credentials_update_counter.sql");
 }
 
 pub mod webauthn_sessions {
-    pub const INSERT: &str = "INSERT INTO webauthn_sessions (user_id, data, purpose, expires_at)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id";
-
-    pub const DELETE_BY_ID: &str = "DELETE FROM webauthn_sessions WHERE id = $1";
+    pub const INSERT: &str = include_str!("sql/webauthn_sessions_insert.sql");
+    pub const DELETE_BY_ID: &str = include_str!("sql/webauthn_sessions_delete_by_id.sql");
 }
