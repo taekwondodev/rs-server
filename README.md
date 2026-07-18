@@ -37,7 +37,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **Error Context**: Rich error propagation with full context preservation
 
 ### Developer Experience
-- **Swagger UI**: Interactive API documentation with OpenAPI 3.0
+- **Swagger UI**: Interactive API documentation with OpenAPI 3.0 (dev-only, `--features openapi`; excluded from default/prod builds)
 - **Type-Safe Configuration**: Environment-based config with validation
 - **Hot Reload Ready**: Fast iteration with cargo-watch
 - **Comprehensive Tests**: Service layer and domain type testing strategy
@@ -99,7 +99,7 @@ docker compose restart server
 
 The service will be available at:
 - **API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui
+- **Swagger UI**: http://localhost:8080/swagger-ui (run with `cargo run --features openapi`; not present in default/prod builds)
 - **Health Check**: http://localhost:8080/healthz
 - **Metrics**: http://localhost:8080/metrics
 

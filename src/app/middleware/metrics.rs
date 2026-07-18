@@ -111,7 +111,7 @@ pub static CIRCUIT_BREAKER_STATE: LazyLock<prometheus::GaugeVec> = LazyLock::new
 /// Get Prometheus metrics
 ///
 /// Returns all metrics in Prometheus format for scraping by monitoring systems
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     get,
     path = "/metrics",
     tag = "Monitoring",
@@ -119,7 +119,7 @@ pub static CIRCUIT_BREAKER_STATE: LazyLock<prometheus::GaugeVec> = LazyLock::new
         (status = 200, description = "Prometheus metrics", content_type = "text/plain"),
         (status = 500, description = "Internal server error")
     )
-)]
+))]
 pub async fn metrics_handler() -> impl IntoResponse {
     let encoder = prometheus::TextEncoder::new();
     let metric_families = prometheus::gather();

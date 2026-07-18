@@ -17,7 +17,6 @@ pub async fn start_server(app: Router, bind_addr: &str) {
     let listener = TcpListener::bind(bind_addr).await.unwrap();
 
     tracing::info!("Server listening on http://{}", bind_addr);
-    tracing::info!("Swagger UI available at http://{}/swagger-ui", bind_addr);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

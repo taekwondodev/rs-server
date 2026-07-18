@@ -14,7 +14,7 @@ use crate::{
 ///
 /// Initiates the WebAuthn registration process for a new user.
 /// Returns challenge options that the client needs to use for credential creation.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/register/begin",
     tag = "Authentication",
@@ -25,7 +25,7 @@ use crate::{
         (status = 409, description = "User already exists", body = crate::app::error::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn begin_register(
     State(state): State<Arc<AppState>>,
     request: BeginRequest,
@@ -39,7 +39,7 @@ pub async fn begin_register(
 ///
 /// Completes the WebAuthn registration process by verifying the client's credential
 /// and storing it in the database.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/register/finish",
     tag = "Authentication",
@@ -50,7 +50,7 @@ pub async fn begin_register(
         (status = 404, description = "Session not found", body = crate::app::error::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn finish_register(
     State(state): State<Arc<AppState>>,
     request: FinishRequest,
@@ -64,7 +64,7 @@ pub async fn finish_register(
 ///
 /// Initiates the WebAuthn authentication process for an existing user.
 /// Returns challenge options for credential verification.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/login/begin",
     tag = "Authentication",
@@ -75,7 +75,7 @@ pub async fn finish_register(
         (status = 404, description = "User not found", body = crate::app::error::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn begin_login(
     State(state): State<Arc<AppState>>,
     request: BeginRequest,
@@ -89,7 +89,7 @@ pub async fn begin_login(
 ///
 /// Completes the WebAuthn authentication process and returns access tokens.
 /// Sets a refresh token cookie for subsequent token refresh operations.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/login/finish",
     tag = "Authentication",
@@ -101,7 +101,7 @@ pub async fn begin_login(
         (status = 404, description = "User or session not found", body = crate::app::error::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn finish_login(
     jar: CookieJar,
     State(state): State<Arc<AppState>>,
@@ -122,7 +122,7 @@ pub async fn finish_login(
 /// Refresh access token
 ///
 /// Uses the refresh token from cookies to generate a new access token.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/refresh",
     tag = "Authentication",
@@ -131,7 +131,7 @@ pub async fn finish_login(
         (status = 401, description = "Invalid or expired refresh token", body = crate::app::error::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn refresh(
     jar: CookieJar,
     State(state): State<Arc<AppState>>,
@@ -152,7 +152,7 @@ pub async fn refresh(
 /// Logout user
 ///
 /// Invalidates the current refresh token and clears authentication cookies.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/logout",
     tag = "Authentication",
@@ -160,7 +160,7 @@ pub async fn refresh(
         (status = 200, description = "Logout completed successfully!", body = MessageResponse),
         (status = 500, description = "Internal server error", body = crate::app::error::ErrorResponse)
     )
-)]
+))]
 pub async fn logout(
     jar: CookieJar,
     State(state): State<Arc<AppState>>,
@@ -182,7 +182,7 @@ pub async fn logout(
 ///
 /// Checks the health of all critical services including database, Redis.
 /// Returns detailed status information and appropriate HTTP status codes.
-#[utoipa::path(
+#[cfg_attr(feature = "openapi", utoipa::path(
     get,
     path = "/healthz",
     tag = "Health",
@@ -190,7 +190,7 @@ pub async fn logout(
         (status = 200, description = "All services are healthy", body = HealthResponse),
         (status = 503, description = "One or more services are unhealthy", body = HealthResponse),
     )
-)]
+))]
 pub async fn healthz(State(state): State<Arc<AppState>>) -> Result<HealthResponse, AppError> {
     let response = state.auth_service.check_health().await;
     metrics::track_health_check(response.is_ok());

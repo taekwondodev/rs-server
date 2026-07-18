@@ -2,9 +2,10 @@ use std::fmt::{self};
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
 
-#[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ErrorResponse {
-    #[schema(example = "username must be at least 3 characters")]
+    #[cfg_attr(feature = "openapi", schema(example = "username must be at least 3 characters"))]
     pub message: Box<str>,
 }
 

@@ -1,4 +1,5 @@
 use serde::Deserialize;
+#[cfg(feature = "openapi")]
 use utoipa::ToSchema;
 
 use crate::{
@@ -7,12 +8,13 @@ use crate::{
     utils::{Validatable, validate_json_credentials, validate_role, validate_text, validate_username},
 };
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BeginRequest {
-    #[schema(example = "john_doe", min_length = 3, max_length = 64)]
+    #[cfg_attr(feature = "openapi", schema(example = "john_doe", min_length = 3, max_length = 64))]
     pub username: Box<str>,
-    #[schema(example = "admin")]
+    #[cfg_attr(feature = "openapi", schema(example = "admin"))]
     pub role: Option<Box<str>>,
 }
 
@@ -26,14 +28,18 @@ impl Validatable for BeginRequest {
     }
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FinishRequest {
-    #[schema(example = "john_doe")]
+    #[cfg_attr(feature = "openapi", schema(example = "john_doe"))]
     pub username: Box<str>,
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub session_id: Box<str>,
-    #[schema(example = json!({"id": "AQIDBAUGBwgJCgsMDQ4PEA", "rawId": "AQIDBAUGBwgJCgsMDQ4PEA", "type": "public-key"}))]
+    #[cfg_attr(
+        feature = "openapi",
+        schema(example = json!({"id": "AQIDBAUGBwgJCgsMDQ4PEA", "rawId": "AQIDBAUGBwgJCgsMDQ4PEA", "type": "public-key"}))
+    )]
     pub credentials: serde_json::Value,
 }
 

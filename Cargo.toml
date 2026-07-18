@@ -7,6 +7,7 @@ edition = "2024"
 default = [] # "strict" per i warnings
 strict = []
 gateway = []
+openapi = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
 
 [dependencies]
 tokio = { version = "1.47.1", features = ["full"] }
@@ -33,9 +34,9 @@ base64 = "0.22.1"
 axum-extra = { version = "0.12.5", features = ["cookie"] }
 redis = { version = "1.0.2", features = ["tokio-comp", "connection-manager"] }
 ed25519-dalek = "2.2.0"
-utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-axum = "0.2.0"
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"], optional = true }
+utoipa-axum = { version = "0.2.0", optional = true }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 prometheus = "0.14.0"
 axum-prometheus = "0.10.0"
 jsonwebtoken = { version = "10.2.0", features = ["aws_lc_rs"] }

@@ -2,13 +2,18 @@ use std::borrow::Cow;
 
 use axum::{response::IntoResponse, Json};
 use serde::Serialize;
+#[cfg(feature = "openapi")]
 use utoipa::ToSchema;
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct BeginResponse {
-    #[schema(example = json!({"challenge": "Y2hhbGxlbmdl", "rp": {"name": "Example", "id": "example.com"}}))]
+    #[cfg_attr(
+        feature = "openapi",
+        schema(example = json!({"challenge": "Y2hhbGxlbmdl", "rp": {"name": "Example", "id": "example.com"}}))
+    )]
     pub options: serde_json::Value,
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub session_id: Box<str>,
 }
 
@@ -18,9 +23,10 @@ impl IntoResponse for BeginResponse {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct MessageResponse {
-    #[schema(example = "Operation completed successfully")]
+    #[cfg_attr(feature = "openapi", schema(example = "Operation completed successfully"))]
     pub message: Cow<'static, str>,
 }
 
@@ -30,12 +36,14 @@ impl IntoResponse for MessageResponse {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct TokenResponse {
-    #[schema(example = "Login completed successfully")]
+    #[cfg_attr(feature = "openapi", schema(example = "Login completed successfully"))]
     pub message: Cow<'static, str>,
-    #[schema(
-        example = "v4.public.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ"
+    #[cfg_attr(
+        feature = "openapi",
+        schema(example = "v4.public.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ")
     )]
     pub access_token: Box<str>,
 }
@@ -46,9 +54,10 @@ impl IntoResponse for TokenResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct HealthResponse {
-    #[schema(example = "2024-01-01T12:00:00Z")]
+    #[cfg_attr(feature = "openapi", schema(example = "2024-01-01T12:00:00Z"))]
     pub timestamp: Box<str>,
     pub checks: HealthChecks,
 }
@@ -59,23 +68,26 @@ impl IntoResponse for HealthResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct HealthChecks {
     pub database: ServiceHealth,
     pub redis: ServiceHealth,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ServiceHealth {
-    #[schema(example = "healthy")]
+    #[cfg_attr(feature = "openapi", schema(example = "healthy"))]
     pub status: HealthStatus,
-    #[schema(example = "Connected successfully")]
+    #[cfg_attr(feature = "openapi", schema(example = "Connected successfully"))]
     pub message: Box<str>,
-    #[schema(example = 150)]
+    #[cfg_attr(feature = "openapi", schema(example = 150))]
     pub response_time_ms: Option<u64>,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema, PartialEq)]
+#[derive(Debug, Serialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
     Healthy,

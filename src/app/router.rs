@@ -4,22 +4,20 @@ use axum::{
 };
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
+#[cfg(feature = "openapi")]
 use utoipa::OpenApi;
+#[cfg(feature = "openapi")]
 use utoipa_axum::router::OpenApiRouter;
+#[cfg(feature = "openapi")]
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    app::{AppState, error::ErrorResponse, middleware::metrics},
-    auth::{
-        dto::{
-            BeginRequest, BeginResponse, FinishRequest, HealthChecks, HealthResponse, HealthStatus,
-            MessageResponse, ServiceHealth, TokenResponse,
-        },
-        handler,
-    },
+    app::{AppState, middleware::metrics},
+    auth::handler,
     http_trace_layer,
 };
 
+#[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -34,16 +32,16 @@ use crate::{
     ),
     components(
         schemas(
-            BeginRequest,
-            FinishRequest,
-            BeginResponse,
-            MessageResponse,
-            TokenResponse,
-            ErrorResponse,
-            HealthResponse,
-            ServiceHealth,
-            HealthChecks,
-            HealthStatus,
+            crate::auth::dto::BeginRequest,
+            crate::auth::dto::FinishRequest,
+            crate::auth::dto::BeginResponse,
+            crate::auth::dto::MessageResponse,
+            crate::auth::dto::TokenResponse,
+            crate::app::error::ErrorResponse,
+            crate::auth::dto::HealthResponse,
+            crate::auth::dto::ServiceHealth,
+            crate::auth::dto::HealthChecks,
+            crate::auth::dto::HealthStatus,
         )
     ),
     tags(
@@ -63,6 +61,7 @@ use crate::{
 )]
 struct ApiDoc;
 
+#[cfg(feature = "openapi")]
 pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .route("/auth/register/begin", post(handler::begin_register))
@@ -75,14 +74,33 @@ pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
         .with_state(state.clone())
         .split_for_parts();
 
+    let router = router.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+
+    finalize_router(router, state)
+}
+
+#[cfg(not(feature = "openapi"))]
+pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
+    let router = axum::Router::new()
+        .route("/auth/register/begin", post(handler::begin_register))
+        .route("/auth/register/finish", post(handler::finish_register))
+        .route("/auth/login/begin", post(handler::begin_login))
+        .route("/auth/login/finish", post(handler::finish_login))
+        .route("/auth/refresh", post(handler::refresh))
+        .route("/auth/logout", post(handler::logout))
+        .route("/healthz", get(handler::healthz))
+        .with_state(state.clone());
+
+    finalize_router(router, state)
+}
+
+fn finalize_router(router: axum::Router, state: std::sync::Arc<AppState>) -> axum::Router {
     let service_builder = ServiceBuilder::new()
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(http_trace_layer!())
         .layer(metrics::create_prometheus_layer());
 
-    let router = router
-        .route("/metrics", get(metrics::metrics_handler))
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api));
+    let router = router.route("/metrics", get(metrics::metrics_handler));
 
     #[cfg(feature = "gateway")]
     let router = router.merge(
@@ -93,6 +111,8 @@ pub fn create_router(state: std::sync::Arc<AppState>) -> axum::Router {
                 crate::app::middleware::gateway::inject_user_headers,
             )),
     );
+    #[cfg(not(feature = "gateway"))]
+    let _ = state;
 
     router.layer(service_builder)
 }
