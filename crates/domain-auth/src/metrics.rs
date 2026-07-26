@@ -1,0 +1,119 @@
+//! Low-level, infra-facing Prometheus primitives.
+//!
+//! These counters/gauges are populated by `infra-postgres` and `infra-jwt`
+//! (db/redis query timing, error counts, circuit breaker state) and by
+//! `PrometheusObserver`, which both infra crates hand to
+//! `rs_repository_utils::{BaseRepository, BaseRedisRepository}`.
+//!
+//! Business/HTTP-facing counters (registration/login attempts, token
+//! operations, health-check requests, the `/metrics` axum handler and the
+//! `axum_prometheus` layer) live in `http::middleware::metrics` instead —
+//! those need axum and are meaningless without it.
+use std::sync::{Arc, LazyLock};
+
+use rs_repository_utils::RepositoryObserver;
+
+pub static DB_QUERY_DURATION: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
+    prometheus::register_histogram_vec!(
+        "db_query_duration_seconds",
+        "Database query execution time in seconds",
+        &["operation", "table"],
+        vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+    )
+    .unwrap()
+});
+
+pub static DB_POOL_CONNECTIONS: LazyLock<prometheus::GaugeVec> = LazyLock::new(|| {
+    prometheus::register_gauge_vec!(
+        "db_pool_connections",
+        "Number of database pool connections",
+        &["state"] // active, idle, max
+    )
+    .unwrap()
+});
+
+pub static DB_ERRORS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
+    prometheus::register_counter_vec!(
+        "db_errors_total",
+        "Total number of database errors",
+        &["operation", "error_type"]
+    )
+    .unwrap()
+});
+
+pub static REDIS_OPERATION_DURATION: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
+    prometheus::register_histogram_vec!(
+        "redis_operation_duration_seconds",
+        "Redis operation execution time in seconds",
+        &["operation"],
+        vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+    )
+    .unwrap()
+});
+
+pub static REDIS_ERRORS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
+    prometheus::register_counter_vec!(
+        "redis_errors_total",
+        "Total number of Redis errors",
+        &["operation", "error_type"]
+    )
+    .unwrap()
+});
+
+pub static CIRCUIT_BREAKER_STATE: LazyLock<prometheus::GaugeVec> = LazyLock::new(|| {
+    prometheus::register_gauge_vec!(
+        "circuit_breaker_state",
+        "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+        &["service"]
+    )
+    .unwrap()
+});
+
+pub fn track_db_query(operation: &str, table: &str, duration_secs: f64) {
+    DB_QUERY_DURATION.with_label_values(&[operation, table]).observe(duration_secs);
+}
+
+pub fn track_db_error(operation: &str, error_type: &str) {
+    DB_ERRORS.with_label_values(&[operation, error_type]).inc();
+}
+
+pub fn update_db_pool_stats(active: usize, idle: usize, max: usize) {
+    DB_POOL_CONNECTIONS.with_label_values(&["active"]).set(active as f64);
+    DB_POOL_CONNECTIONS.with_label_values(&["idle"]).set(idle as f64);
+    DB_POOL_CONNECTIONS.with_label_values(&["max"]).set(max as f64);
+}
+
+pub fn update_circuit_breaker_state(service: &str, state: u8) {
+    // 0=closed, 1=open, 2=half-open
+    CIRCUIT_BREAKER_STATE.with_label_values(&[service]).set(state as f64);
+}
+
+pub fn track_redis_operation(operation: &str, duration_secs: f64) {
+    REDIS_OPERATION_DURATION.with_label_values(&[operation]).observe(duration_secs);
+}
+
+pub fn track_redis_error(operation: &str, error_type: &str) {
+    REDIS_ERRORS.with_label_values(&[operation, error_type]).inc();
+}
+
+pub struct PrometheusObserver;
+
+impl RepositoryObserver for PrometheusObserver {
+    fn on_db_query(&self, op: &str, table: &str, duration_secs: f64, success: bool) {
+        track_db_query(op, table, duration_secs);
+        if !success {
+            track_db_error(op, "query_failed");
+        }
+    }
+
+    fn on_redis_op(&self, op: &str, duration_secs: f64, success: bool) {
+        track_redis_operation(op, duration_secs);
+        if !success {
+            track_redis_error(op, "operation_failed");
+        }
+    }
+}
+
+pub fn prometheus_observer() -> Option<Arc<dyn RepositoryObserver>> {
+    Some(Arc::new(PrometheusObserver))
+}

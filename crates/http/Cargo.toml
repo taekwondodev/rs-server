@@ -1,0 +1,34 @@
+[package]
+name = "http"
+version = "1.0.0"
+edition = "2024"
+
+[features]
+default = []
+strict = []
+gateway = ["domain-auth/gateway"]
+openapi = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
+
+[dependencies]
+domain-auth = { workspace = true }
+rs-repository-utils = { workspace = true, features = ["health"] }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+time = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+prometheus = { workspace = true }
+axum-prometheus = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+utoipa = { workspace = true, optional = true }
+utoipa-axum = { workspace = true, optional = true }
+utoipa-swagger-ui = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

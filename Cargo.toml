@@ -1,15 +1,8 @@
-[package]
-name = "rs-server"
-version = "1.0.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = ["crates/domain-shared", "crates/domain-auth", "crates/infra-postgres", "crates/infra-jwt", "crates/http"]
 
-[features]
-default = [] # "strict" per i warnings
-strict = []
-gateway = []
-openapi = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
-
-[dependencies]
+[workspace.dependencies]
 tokio = { version = "1.47.1", features = ["full"] }
 axum = { version = "0.8.4", features = ["macros"] }
 tower = "0.5.2"
@@ -34,13 +27,45 @@ base64 = "0.22.1"
 axum-extra = { version = "0.12.5", features = ["cookie"] }
 redis = { version = "1.0.2", features = ["tokio-comp", "connection-manager"] }
 ed25519-dalek = "3.0.0"
-utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"], optional = true }
-utoipa-axum = { version = "0.2.0", optional = true }
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-axum = { version = "0.2.0" }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 prometheus = "0.14.0"
 axum-prometheus = "0.10.0"
 jsonwebtoken = { version = "10.2.0", features = ["aws_lc_rs"] }
 time = { version = "0.3.44", features = ["macros"] }
-rs-repository-utils = { git = "https://github.com/taekwondodev/rs-repository-utils", branch = "main", features = ["postgres", "redis", "health"] }
+rs-repository-utils = { git = "https://github.com/taekwondodev/rs-repository-utils", branch = "main" }
 hkdf = "0.13"
 sha2 = "0.11"
+anyhow = "1.0"
+thiserror = "2.0"
+
+domain-shared = { path = "crates/domain-shared" }
+domain-auth = { path = "crates/domain-auth" }
+infra-postgres = { path = "crates/infra-postgres" }
+infra-jwt = { path = "crates/infra-jwt" }
+http = { path = "crates/http" }
+
+[package]
+name = "rs-server"
+version = "1.0.0"
+edition = "2024"
+
+[features]
+default = [] # "strict" per i warnings
+strict = ["domain-auth/strict", "infra-postgres/strict", "infra-jwt/strict", "http/strict"]
+gateway = ["http/gateway", "domain-auth/gateway"]
+openapi = ["http/openapi"]
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+webauthn-rs = { workspace = true }
+url = { workspace = true }
+rs-repository-utils = { workspace = true, features = ["health"] }
+domain-auth = { workspace = true }
+infra-postgres = { workspace = true }
+infra-jwt = { workspace = true }
+http = { workspace = true }

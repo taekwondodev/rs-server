@@ -163,7 +163,7 @@ dependencies = [
  "bytes",
  "form_urlencoded",
  "futures-util",
- "http",
+ "http 1.4.0",
  "http-body",
  "http-body-util",
  "hyper",
@@ -194,7 +194,7 @@ checksum = "08c78f31d7b1291f7ee735c1c6780ccde7785daae9a9206026862dab7d8792d1"
 dependencies = [
  "bytes",
  "futures-core",
- "http",
+ "http 1.4.0",
  "http-body",
  "http-body-util",
  "mime",
@@ -217,7 +217,7 @@ dependencies = [
  "cookie",
  "futures-core",
  "futures-util",
- "http",
+ "http 1.4.0",
  "http-body",
  "http-body-util",
  "mime",
@@ -247,7 +247,7 @@ dependencies = [
  "axum",
  "bytes",
  "futures-core",
- "http",
+ "http 1.4.0",
  "http-body",
  "matchit",
  "metrics",
@@ -645,6 +645,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "domain-auth"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "domain-shared",
+ "prometheus",
+ "rs-repository-utils",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+ "webauthn-rs",
+]
+
+[[package]]
+name = "domain-shared"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -998,6 +1025,32 @@ dependencies = [
 
 [[package]]
 name = "http"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-extra",
+ "axum-prometheus",
+ "chrono",
+ "domain-auth",
+ "prometheus",
+ "rs-repository-utils",
+ "serde",
+ "serde_json",
+ "time",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+ "tracing",
+ "url",
+ "utoipa",
+ "utoipa-axum",
+ "utoipa-swagger-ui",
+ "uuid",
+]
+
+[[package]]
+name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3ba2a386d7f85a81f119ad7498ebe444d2e22c2af0b86b069416ace48b3311a"
@@ -1013,7 +1066,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http",
+ "http 1.4.0",
 ]
 
 [[package]]
@@ -1024,7 +1077,7 @@ checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
 dependencies = [
  "bytes",
  "futures-core",
- "http",
+ "http 1.4.0",
  "http-body",
  "pin-project-lite",
 ]
@@ -1060,7 +1113,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-core",
- "http",
+ "http 1.4.0",
  "http-body",
  "httparse",
  "httpdate",
@@ -1077,7 +1130,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
 dependencies = [
  "bytes",
- "http",
+ "http 1.4.0",
  "http-body",
  "hyper",
  "pin-project-lite",
@@ -1228,6 +1281,40 @@ dependencies = [
  "hashbrown 0.17.1",
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "infra-jwt"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "domain-auth",
+ "ed25519-dalek",
+ "hkdf",
+ "jsonwebtoken",
+ "redis",
+ "rs-repository-utils",
+ "sha2 0.11.0",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "infra-postgres"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "deadpool-postgres",
+ "domain-auth",
+ "rs-repository-utils",
+ "serde_json",
+ "tokio-postgres",
+ "tracing",
+ "uuid",
+ "webauthn-rs",
 ]
 
 [[package]]
@@ -2029,8 +2116,8 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "rs-repository-utils"
-version = "0.1.0"
-source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#b416f07cf8eca6741cb9b4be0deeb449ceb97e00"
+version = "0.2.0"
+source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#de9532ac6810aefacf849de13d677ddae2dc0ebf"
 dependencies = [
  "deadpool-postgres",
  "failsafe",
@@ -2046,32 +2133,15 @@ name = "rs-server"
 version = "1.0.0"
 dependencies = [
  "axum",
- "axum-extra",
- "axum-prometheus",
- "base64 0.22.1",
- "chrono",
- "deadpool-postgres",
- "ed25519-dalek",
- "hkdf",
- "jsonwebtoken",
- "prometheus",
- "redis",
+ "domain-auth",
+ "http 1.0.0",
+ "infra-jwt",
+ "infra-postgres",
  "rs-repository-utils",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "time",
  "tokio",
- "tokio-postgres",
- "tower",
- "tower-http 0.7.0",
  "tracing",
  "tracing-subscriber",
  "url",
- "utoipa",
- "utoipa-axum",
- "utoipa-swagger-ui",
- "uuid",
  "webauthn-rs",
 ]
 
@@ -2608,7 +2678,7 @@ checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
  "bitflags",
  "bytes",
- "http",
+ "http 1.4.0",
  "pin-project-lite",
  "tower-layer",
  "tower-service",
@@ -2622,7 +2692,7 @@ checksum = "b11f75e912b0c2be01b63d8cf8057b8c3f97cf34abb3d431a3a4c8675498e233"
 dependencies = [
  "bitflags",
  "bytes",
- "http",
+ "http 1.4.0",
  "http-body",
  "percent-encoding",
  "pin-project-lite",

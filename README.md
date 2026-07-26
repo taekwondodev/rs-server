@@ -1,6 +1,6 @@
 # Rust Backend Template
 
-A production-ready Rust backend template featuring Type-Driven Design, modern async architecture, and comprehensive observability. Built with Axum, PostgreSQL, and Redis.
+A production-ready Rust backend template featuring Type-Driven Design, hexagonal architecture, and comprehensive observability. Built with Axum, PostgreSQL, and Redis.
 
 ## Template Philosophy
 
@@ -13,9 +13,10 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 ## Features
 
 ### Core Architecture
-- **Feature-Based Organization**: Code organized by business domain, not technical layers
+- **Hexagonal / Ports & Adapters**: Cargo workspace, one crate per architectural role — business logic never depends on a specific database, cache, or web framework
+- **Bounded-Context Ready**: Each feature is its own set of crates (`domain-<name>` + adapters), sharing only a minimal identifier kernel — adding a second feature never means reaching into the first one's internals
 - **Type-Driven Design**: NewTypes, strong typing, and compile-time safety
-- **Clean Separation**: Handler → Service → Repository pattern with strict boundaries
+- **Generic Ports, Zero-Cost Dispatch**: Repository/service traits are generic bounds, monomorphized at the composition root — no vtable indirection on the request path. The one deliberate exception is health checks: an open-ended, heterogeneous set of dependencies genuinely needs dynamic dispatch, so that's the single `dyn Trait` in the workspace
 - **Async First**: Built on Tokio runtime with Axum web framework
 
 ### Resilience & Reliability
@@ -52,6 +53,26 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **RFC 9068 Compliance**: Access tokens carry `iss` and `aud` claims, validated on every request to prevent cross-service relay attacks
 - **Token Family Reuse Detection**: Replaying a rotated refresh token immediately revokes the entire session chain
 - **Security Audit Trail**: Tamper-evident structured log of all authentication and authorization events
+
+## Architecture
+
+Cargo workspace, one crate per architectural role. Dependency direction is enforced by the compiler, not by convention:
+
+```
+crates/domain-shared    shared-kernel identifiers only (e.g. UserId) — no business logic
+crates/domain-auth      auth bounded context: entities, ports, AuthService, DomainError
+crates/infra-postgres   AuthRepository implementation (Postgres)
+crates/infra-jwt        JwtService implementation (JWT crypto + Redis sessions)
+crates/http             axum adapter: generic AppState<R, J>, handlers, wire DTOs
+rs-server (bin)         composition root — the only crate that picks concrete types
+```
+
+`domain-*` crates depend on nothing infra- or HTTP-flavored — no `axum`, `tokio-postgres`, `redis`,
+or `jsonwebtoken` in sight. `infra-*`/`http` each depend on their one domain crate and nothing else
+in the workspace (health-checking comes from the `rs-repository-utils` library dependency, not a
+local crate). Adding a second feature (payments, notifications, ...) means adding a parallel
+`domain-<name>`/`infra-<name>` crate set, not editing `domain-auth` — see
+[`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the full walkthrough.
 
 ## Quick Start
 
@@ -110,7 +131,7 @@ For setup instructions and project adaptation guidance, see [`.claude/CLAUDE.md`
 ## Testing
 
 ```bash
-cargo test
+cargo test --workspace
 ```
 
 ## Monitoring
