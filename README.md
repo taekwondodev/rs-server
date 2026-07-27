@@ -118,12 +118,6 @@ docker compose restart server
 ```
 ---
 
-The service will be available at:
-- **API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui (run with `cargo run --features openapi`; not present in default/prod builds)
-- **Health Check**: http://localhost:8080/healthz
-- **Metrics**: http://localhost:8080/metrics
-
 ## Usage Guide
 
 For setup instructions and project adaptation guidance, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — loaded automatically by Claude Code.
