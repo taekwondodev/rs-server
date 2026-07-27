@@ -12,8 +12,10 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   - job_name: "rs-passkey-auth"
+    # 9091 = INTERNAL_PORT in .env. This file isn't processed by compose's
+    # ${VAR} substitution, so keep this literal in sync manually.
     static_configs:
-      - targets: ["server:8080"]
+      - targets: ["server:9091"]
     metrics_path: /metrics
     scrape_interval: 15s
     scrape_timeout: 10s

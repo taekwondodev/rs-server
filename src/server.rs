@@ -1,30 +1,47 @@
-//! Pure process bootstrap — starts the axum server and handles graceful
+//! Pure process bootstrap — starts the axum servers and handles graceful
 //! shutdown. Doesn't touch any of `http`'s internal types (just `axum::Router`),
 //! so it stays in the `rs-server` bin crate rather than in `http` itself.
+use std::env;
+
 use axum::Router;
 use tokio::net::TcpListener;
 
 pub struct ServerConfig {
     pub bind_addr: Box<str>,
+    pub internal_bind_addr: Box<str>,
 }
 
-impl Default for ServerConfig {
-    fn default() -> Self {
+impl ServerConfig {
+    pub fn from_env() -> Self {
+        let server_port: u16 = env::var("SERVER_PORT").unwrap().parse().unwrap();
+        let internal_port: u16 = env::var("INTERNAL_PORT").unwrap().parse().unwrap();
+
         Self {
-            bind_addr: "0.0.0.0:8080".into(),
+            bind_addr: format!("0.0.0.0:{server_port}").into_boxed_str(),
+            internal_bind_addr: format!("0.0.0.0:{internal_port}").into_boxed_str(),
         }
     }
 }
 
-pub async fn start_server(app: Router, bind_addr: &str) {
-    let listener = TcpListener::bind(bind_addr).await.unwrap();
+/// Runs the public router and the internal (`/healthz` + `/metrics`) router
+/// on two separate listeners concurrently. `internal_bind_addr` must stay
+/// unpublished in `compose.yaml`'s `ports:` — that's what keeps it off the
+/// public internet while still reachable container-to-container (e.g. by
+/// Prometheus).
+pub async fn start_servers(public_app: Router, internal_app: Router, config: &ServerConfig) {
+    let public_listener = TcpListener::bind(&*config.bind_addr).await.unwrap();
+    let internal_listener = TcpListener::bind(&*config.internal_bind_addr).await.unwrap();
 
-    tracing::info!("Server listening on http://{}", bind_addr);
+    tracing::info!("Server listening on http://{}", config.bind_addr);
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    let public_serve =
+        axum::serve(public_listener, public_app).with_graceful_shutdown(shutdown_signal());
+    let internal_serve =
+        axum::serve(internal_listener, internal_app).with_graceful_shutdown(shutdown_signal());
+
+    let (public_result, internal_result) = tokio::join!(public_serve, internal_serve);
+    public_result.unwrap();
+    internal_result.unwrap();
 
     tracing::info!("Server shutdown completed");
 }

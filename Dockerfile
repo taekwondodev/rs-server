@@ -54,6 +54,4 @@ RUN chmod +x /bin/server
 
 USER appuser
 
-EXPOSE 8080
-
 CMD ["/bin/server"]

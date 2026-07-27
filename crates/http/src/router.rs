@@ -24,8 +24,6 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
         handler::finish_login,
         handler::refresh,
         handler::logout,
-        handler::healthz,
-        metrics::metrics_handler,
     ),
     components(
         schemas(
@@ -35,16 +33,10 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
             crate::dto::MessageResponse,
             crate::dto::TokenResponse,
             crate::error::ErrorResponse,
-            crate::dto::HealthResponse,
-            crate::dto::ServiceHealth,
-            crate::dto::HealthChecks,
-            crate::dto::HealthStatus,
         )
     ),
     tags(
         (name = "Authentication", description = "WebAuthn-based authentication endpoints"),
-         (name = "Monitoring", description = "Prometheus metrics endpoint"),
-          (name = "Health", description = "Health check endpoints")
     ),
     info(
         title = "server API",
@@ -71,7 +63,6 @@ where
         .route("/auth/login/finish", post(handler::finish_login))
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
-        .route("/healthz", get(handler::healthz))
         .with_state(state.clone())
         .split_for_parts();
 
@@ -93,7 +84,6 @@ where
         .route("/auth/login/finish", post(handler::finish_login))
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
-        .route("/healthz", get(handler::healthz))
         .with_state(state.clone());
 
     finalize_router(router, state)
@@ -109,8 +99,6 @@ where
         .layer(http_trace_layer!())
         .layer(metrics::create_prometheus_layer());
 
-    let router = router.route("/metrics", get(metrics::metrics_handler));
-
     #[cfg(feature = "gateway")]
     let router = router.merge(
         axum::Router::new()
@@ -124,4 +112,22 @@ where
     let _ = state;
 
     router.layer(service_builder)
+}
+
+/// `/healthz` + `/metrics` on their own router, meant to be served on a
+/// separate internal-only listener (see `rs-server`'s `main.rs`/`server.rs`)
+/// rather than merged into the public router — neither endpoint should be
+/// reachable on the publicly-published port. No `PrometheusMetricLayer` here:
+/// that would make `/metrics` scrape requests show up in `/metrics`'s own
+/// output. No `DefaultBodyLimit` either: both routes are GET with no body.
+pub fn create_internal_router<R, J>(state: AppState<R, J>) -> axum::Router
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    axum::Router::new()
+        .route("/healthz", get(handler::healthz))
+        .route("/metrics", get(metrics::metrics_handler))
+        .with_state(state)
+        .layer(http_trace_layer!())
 }

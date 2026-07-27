@@ -73,16 +73,22 @@ HealthIndicator` on the adapter, push it into the `health_indicators` vec built 
 
 ### 1. Environment
 
-Copy `.env.example` to `.env`, then fill in every value. These four are not optional — the server panics at startup if missing:
+Copy `.env.example` to `.env`, then fill in every value. These six are not optional — the server panics at startup if missing:
 
 ```
 JWT_SECRET_KEY   # openssl rand -base64 32
 JWT_ISSUER       # https://auth.example.com
 JWT_AUDIENCE     # https://api.example.com
 URL_BACKEND      # https://your-backend-url
+SERVER_PORT      # public port
+INTERNAL_PORT    # /healthz + /metrics only
 ```
 
 Also change the three default passwords (`changeme_*`) before starting Docker.
+
+`INTERNAL_PORT` must stay unpublished in `compose.yaml` — that's what keeps `/healthz`/`/metrics`
+off the public internet while still reachable container-to-container (e.g. Prometheus). If you
+change `INTERNAL_PORT`, also update the hardcoded target in `prometheus.yml`
 
 ### 2. Rename the project
 

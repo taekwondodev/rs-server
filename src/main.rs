@@ -58,8 +58,9 @@ async fn main() {
         health_indicators,
     };
 
-    let app = http::create_router(state).layer(cors_layer);
+    let internal_app = http::create_internal_router(state.clone());
+    let public_app = http::create_router(state).layer(cors_layer);
 
-    let server_config = server::ServerConfig::default();
-    server::start_server(app, &server_config.bind_addr).await
+    let server_config = server::ServerConfig::from_env();
+    server::start_servers(public_app, internal_app, &server_config).await
 }
