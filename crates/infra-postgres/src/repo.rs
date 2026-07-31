@@ -182,7 +182,7 @@ impl AuthRepository for Repository {
             .await
             .map_err(classify_repo_error)?;
 
-        found.ok_or(DomainError::NotFound("User or credentials not found"))
+        found.ok_or(DomainError::Unauthorized("user or credentials not found"))
     }
 
     async fn create_webauthn_session(

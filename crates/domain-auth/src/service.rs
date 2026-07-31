@@ -91,7 +91,8 @@ where
                     reason: "credential verification failed",
                 }
                 .emit();
-                DomainError::from(e)
+                tracing::warn!(error = %e, "registration.credential_verification_failed");
+                DomainError::BadRequest("Invalid credentials".into())
             })?;
 
         self.auth_repo.complete_registration(user.id, &user.username, &passkey).await?;
@@ -133,7 +134,8 @@ where
                     reason: "credential verification failed",
                 }
                 .emit();
-                DomainError::from(e)
+                tracing::warn!(error = %e, "login.credential_verification_failed");
+                DomainError::Unauthorized("user or credentials not found")
             })?;
 
         if result.needs_update() {

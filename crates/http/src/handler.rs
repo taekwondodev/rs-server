@@ -24,8 +24,9 @@ use crate::{
     responses(
         (status = 200, description = "Registration process started successfully", body = BeginResponse),
         (status = 400, description = "Invalid request data", body = crate::error::ErrorResponse),
-        (status = 409, description = "User already exists", body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 409, description = "Username already exists", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn begin_register<R, J>(
@@ -66,8 +67,9 @@ where
     responses(
         (status = 200, description = "Registration completed successfully!", body = MessageResponse),
         (status = 400, description = "Invalid request data or credentials", body = crate::error::ErrorResponse),
-        (status = 404, description = "Session not found", body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 404, description = "User or session not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn finish_register<R, J>(
@@ -95,8 +97,9 @@ where
     responses(
         (status = 200, description = "Login process started successfully", body = BeginResponse),
         (status = 400, description = "Invalid request data", body = crate::error::ErrorResponse),
-        (status = 404, description = "User not found", body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn begin_login<R, J>(
@@ -126,7 +129,8 @@ where
         (status = 400, description = "Invalid credentials", body = crate::error::ErrorResponse),
         (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
         (status = 404, description = "User or session not found", body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn finish_login<R, J>(
@@ -158,7 +162,8 @@ where
     responses(
         (status = 200, description = "Refresh completed successfully!", body = TokenResponse),
         (status = 401, description = "Invalid or expired refresh token", body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn refresh<R, J>(
@@ -189,7 +194,8 @@ where
     tag = "Authentication",
     responses(
         (status = 200, description = "Logout completed successfully!", body = MessageResponse),
-        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse)
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
     )
 ))]
 pub async fn logout<R, J>(
