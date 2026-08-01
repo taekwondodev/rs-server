@@ -7,6 +7,7 @@ use crate::{
     claims::{AccessTokenClaims, RefreshTokenClaims},
     error::DomainError,
     model::{RegistrationOutcome, User, WebAuthnSession},
+    security_audit::ClientContext,
 };
 
 pub trait AuthRepository: Send + Sync {
@@ -62,6 +63,7 @@ pub trait JwtService: Send + Sync {
     fn validate_refresh(
         &self,
         token: &str,
+        client: &ClientContext,
     ) -> impl Future<Output = Result<RefreshTokenClaims, DomainError>> + Send;
 
     fn validate_access(

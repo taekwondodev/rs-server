@@ -1,5 +1,5 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
-use domain_auth::{AccessTokenClaims, AuthRepository, JwtService, SecurityEvent};
+use domain_auth::{AccessTokenClaims, AuthRepository, ClientContext, JwtService, SecurityEvent};
 
 use crate::{error::HttpError, state::AppState};
 
@@ -17,11 +17,13 @@ where
         parts: &mut Parts,
         state: &AppState<R, J>,
     ) -> Result<Self, Self::Rejection> {
+        let client = ClientContext::from_request_parts(parts, state).await.unwrap();
+
         let auth_header = extract_auth_header(parts).inspect_err(|_| {
-            SecurityEvent::Unauthorized.emit();
+            SecurityEvent::Unauthorized { client: &client }.emit();
         })?;
         is_bearer_token(auth_header).inspect_err(|_| {
-            SecurityEvent::Unauthorized.emit();
+            SecurityEvent::Unauthorized { client: &client }.emit();
         })?;
         let token = extract_token(auth_header);
         let claims = state
@@ -29,7 +31,11 @@ where
             .validate_access(token)
             .await
             .inspect_err(|_| {
-                SecurityEvent::TokenRejected { reason: "invalid or expired access token" }.emit();
+                SecurityEvent::TokenRejected {
+                    reason: "invalid or expired access token",
+                    client: &client,
+                }
+                .emit();
             })?;
 
         Ok(claims)
@@ -50,12 +56,13 @@ where
         parts: &mut Parts,
         state: &AppState<R, J>,
     ) -> Result<Self, Self::Rejection> {
+        let client = ClientContext::from_request_parts(parts, state).await.unwrap();
         let claims = AccessTokenClaims::from_request_parts(parts, state).await?;
 
         match claims.role() {
             Some("admin") => Ok(AdminClaims(claims)),
             _ => {
-                SecurityEvent::AdminDenied { user_id: claims.sub }.emit();
+                SecurityEvent::AdminDenied { user_id: claims.sub, client: &client }.emit();
                 Err(HttpError::unauthorized("Admin access required"))
             }
         }

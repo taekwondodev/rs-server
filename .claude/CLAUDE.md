@@ -44,8 +44,15 @@ exception, and it's deliberate: see **Health Checks** below for why.
 
 **Errors**: `domain_auth::DomainError` (thiserror) is the only error type ports return. Infra crate
 method bodies use an inner `anyhow::Result` so infra errors (`tokio_postgres::Error`,
-`redis::RedisError`, etc.) auto-convert via anyhow's blanket `From`, then exactly one
-`.map_err(DomainError::Internal)` per public trait method at the boundary — not per call site.
+`redis::RedisError`, `rs_repository_utils::RepositoryError`, etc.) auto-convert via anyhow's
+blanket `From`, then exactly one boundary-conversion fn per crate (`classify_repo_error` in both
+`infra-postgres/src/repo.rs` and `infra-jwt/src/service.rs`) runs per public trait method — not per
+call site. It downcasts to `RepositoryError` to map `CircuitBreakerOpen` → `ServiceUnavailable` and
+`InvalidQuery` → `BadRequest`; everything else (including any other `RepositoryError` variant)
+falls through to `DomainError::Internal`. The two copies are intentionally duplicated, not shared
+— `infra-postgres`/`infra-jwt` never depend on each other, and centralizing the fn in `domain-auth`
+would leak infra vocabulary (circuit breakers, connection pools) into the "zero infra deps" domain
+crate, which is a stronger coupling than the trait-based exceptions in **Health Checks** below.
 `http::HttpError` wraps `DomainError` and is the only place `IntoResponse` for an error exists.
 
 **Shared kernel**: `domain-shared::UserId` exists so a future bounded context (payments, etc.) can

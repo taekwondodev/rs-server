@@ -5,4 +5,4 @@ SELECT
     ws.created_at as session_created_at, ws.expires_at
 FROM users u
 INNER JOIN webauthn_sessions ws ON u.id = ws.user_id
-WHERE u.username = $1 AND ws.id = $2 AND ws.purpose = $3;
+WHERE u.username = $1 AND ws.id = $2 AND ws.purpose = $3 AND ws.expires_at > now();

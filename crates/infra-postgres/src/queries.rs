@@ -14,4 +14,5 @@ pub mod credentials {
 pub mod webauthn_sessions {
     pub const INSERT: &str = include_str!("sql/webauthn_sessions_insert.sql");
     pub const DELETE_BY_ID: &str = include_str!("sql/webauthn_sessions_delete_by_id.sql");
+    pub const DELETE_EXPIRED: &str = include_str!("sql/webauthn_sessions_delete_expired.sql");
 }

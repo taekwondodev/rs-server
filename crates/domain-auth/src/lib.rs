@@ -15,7 +15,7 @@ pub use commands::{BeginCommand, FinishCommand};
 pub use dto::{BeginResult, MessageResult, RegistrationKind, TokenResult};
 pub use error::DomainError;
 pub use model::{RegistrationOutcome, User, WebAuthnSession};
-pub use security_audit::SecurityEvent;
+pub use security_audit::{ClientContext, SecurityEvent};
 pub use service::AuthService;
 pub use traits::{AuthRepository, JwtService, TokenPair};
 

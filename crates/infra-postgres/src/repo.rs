@@ -195,7 +195,9 @@ impl AuthRepository for Repository {
         self.base
             .execute_with_circuit_breaker("insert", "webauthn_sessions", |db| async move {
                 let client = db.get().await?;
-                let expire_at = chrono::Utc::now() + chrono::Duration::minutes(30);
+                let expire_at = chrono::Utc::now() + chrono::Duration::seconds(60);
+
+                client.execute(queries::webauthn_sessions::DELETE_EXPIRED, &[]).await?;
 
                 let row = client
                     .query_one(

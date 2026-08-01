@@ -7,7 +7,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use domain_auth::{AccessTokenClaims, AuthRepository, JwtService, SecurityEvent};
+use domain_auth::{AccessTokenClaims, AuthRepository, ClientContext, JwtService, SecurityEvent};
 
 use crate::{error::HttpError, state::AppState};
 
@@ -34,11 +34,12 @@ where
     strip_forwarded_headers(&mut req);
 
     let (mut parts, body) = req.into_parts();
+    let client = ClientContext::from_request_parts(&mut parts, &state).await.unwrap();
     let claims = AccessTokenClaims::from_request_parts(&mut parts, &state).await?;
     let mut req = Request::from_parts(parts, body);
 
     inject_identity_headers(&mut req, &claims)?;
-    SecurityEvent::GatewayForward { user_id: *claims.sub() }.emit();
+    SecurityEvent::GatewayForward { user_id: *claims.sub(), client: &client }.emit();
 
     Ok(next.run(req).await)
 }

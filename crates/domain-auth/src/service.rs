@@ -16,7 +16,7 @@ use crate::{
     dto::{BeginResult, MessageResult, RegistrationKind, TokenResult},
     error::DomainError,
     model::{RegistrationOutcome, WebAuthnSession},
-    security_audit::SecurityEvent,
+    security_audit::{ClientContext, SecurityEvent},
     traits::{AuthRepository, JwtService},
 };
 
@@ -89,16 +89,24 @@ where
                     user_id: user.id,
                     event: "registration",
                     reason: "credential verification failed",
+                    client: &cmd.client,
                 }
                 .emit();
                 tracing::warn!(error = %e, "registration.credential_verification_failed");
                 DomainError::BadRequest("Invalid credentials".into())
             })?;
 
-        self.auth_repo.complete_registration(user.id, &user.username, &passkey).await?;
+        self.auth_repo
+            .complete_registration(user.id, &user.username, &passkey)
+            .await?;
         self.cleanup_session(session_id);
 
-        SecurityEvent::AuthSuccess { user_id: user.id, event: "registration" }.emit();
+        SecurityEvent::AuthSuccess {
+            user_id: user.id,
+            event: "registration",
+            client: &cmd.client,
+        }
+        .emit();
 
         Ok(MessageResult {
             message: Cow::Borrowed("Registration completed successfully!"),
@@ -106,20 +114,25 @@ where
     }
 
     pub async fn begin_login(&self, cmd: BeginCommand) -> Result<BeginResult, DomainError> {
-        let (user, passkey) = self.auth_repo.get_active_user_with_credential(&cmd.username).await?;
+        let (user, passkey) = self
+            .auth_repo
+            .get_active_user_with_credential(&cmd.username)
+            .await?;
         let (rcr, passkey_authentication) = self.webauthn.start_passkey_authentication(&passkey)?;
 
         let (session_data, opts) = Self::prepare_session_data(passkey_authentication, rcr)?;
 
-        self.create_session_response(user.id, session_data, opts, "login").await
+        self.create_session_response(user.id, session_data, opts, "login")
+            .await
     }
 
     pub async fn finish_login(
         &self,
         cmd: FinishCommand,
     ) -> Result<(TokenResult, Box<str>), DomainError> {
-        let (session_id, user, session) =
-            self.get_user_and_session(&cmd.session_id, &cmd.username, "login").await?;
+        let (session_id, user, session) = self
+            .get_user_and_session(&cmd.session_id, &cmd.username, "login")
+            .await?;
 
         let passkey_authentication = serde_json::from_value::<PasskeyAuthentication>(session.data)?;
         let credentials = serde_json::from_value::<PublicKeyCredential>(cmd.credentials)?;
@@ -132,6 +145,7 @@ where
                     user_id: user.id,
                     event: "login",
                     reason: "credential verification failed",
+                    client: &cmd.client,
                 }
                 .emit();
                 tracing::warn!(error = %e, "login.credential_verification_failed");
@@ -139,19 +153,31 @@ where
             })?;
 
         if result.needs_update() {
-            self.auth_repo.update_credential(result.cred_id(), result.counter()).await?;
+            self.auth_repo
+                .update_credential(result.cred_id(), result.counter())
+                .await?;
         }
 
         self.cleanup_session(session_id);
 
         let token_pair =
-            self.jwt_service.generate_token_pair(user.id, &user.username, user.role.as_deref());
+            self.jwt_service
+                .generate_token_pair(user.id, &user.username, user.role.as_deref());
 
         self.jwt_service
-            .store_session(&token_pair.refresh_jti, &token_pair.refresh_family_id, token_pair.refresh_exp)
+            .store_session(
+                &token_pair.refresh_jti,
+                &token_pair.refresh_family_id,
+                token_pair.refresh_exp,
+            )
             .await?;
 
-        SecurityEvent::AuthSuccess { user_id: user.id, event: "login" }.emit();
+        SecurityEvent::AuthSuccess {
+            user_id: user.id,
+            event: "login",
+            client: &cmd.client,
+        }
+        .emit();
 
         Ok((
             TokenResult {
@@ -162,10 +188,16 @@ where
         ))
     }
 
-    pub async fn refresh(&self, refresh_token: &str) -> Result<(TokenResult, Box<str>), DomainError> {
-        let claims = self.jwt_service.validate_refresh(refresh_token).await?;
+    pub async fn refresh(
+        &self,
+        refresh_token: &str,
+        client: &ClientContext,
+    ) -> Result<(TokenResult, Box<str>), DomainError> {
+        let claims = self.jwt_service.validate_refresh(refresh_token, client).await?;
 
-        self.jwt_service.revoke_session(claims.jti(), claims.family_id()).await?;
+        self.jwt_service
+            .revoke_session(claims.jti(), claims.family_id())
+            .await?;
 
         let token_pair = self.jwt_service.generate_token_pair_with_family(
             *claims.sub(),
@@ -175,7 +207,11 @@ where
         );
 
         self.jwt_service
-            .store_session(&token_pair.refresh_jti, claims.family_id(), token_pair.refresh_exp)
+            .store_session(
+                &token_pair.refresh_jti,
+                claims.family_id(),
+                token_pair.refresh_exp,
+            )
             .await?;
 
         Ok((
@@ -187,16 +223,22 @@ where
         ))
     }
 
-    pub async fn logout(&self, refresh_token: &str) -> Result<MessageResult, DomainError> {
+    pub async fn logout(
+        &self,
+        refresh_token: &str,
+        client: &ClientContext,
+    ) -> Result<MessageResult, DomainError> {
         if refresh_token.is_empty() {
             return Ok(MessageResult {
                 message: Cow::Borrowed("Logout completed successfully!"),
             });
         }
 
-        match self.jwt_service.validate_refresh(refresh_token).await {
+        match self.jwt_service.validate_refresh(refresh_token, client).await {
             Ok(claims) => {
-                self.jwt_service.revoke_session(claims.jti(), claims.family_id()).await?;
+                self.jwt_service
+                    .revoke_session(claims.jti(), claims.family_id())
+                    .await?;
             }
             Err(DomainError::Unauthorized(_)) => {}
             Err(e) => return Err(e),
@@ -215,7 +257,10 @@ where
         T: serde::Serialize,
         U: serde::Serialize,
     {
-        Ok((serde_json::to_value(session_obj)?, serde_json::to_value(options_obj)?))
+        Ok((
+            serde_json::to_value(session_obj)?,
+            serde_json::to_value(options_obj)?,
+        ))
     }
 
     async fn create_session_response(
@@ -225,8 +270,10 @@ where
         opts: serde_json::Value,
         session_type: &str,
     ) -> Result<BeginResult, DomainError> {
-        let session_id =
-            self.auth_repo.create_webauthn_session(user_id, session_data, session_type).await?;
+        let session_id = self
+            .auth_repo
+            .create_webauthn_session(user_id, session_data, session_type)
+            .await?;
 
         Ok(BeginResult {
             options: opts,
@@ -242,8 +289,10 @@ where
     ) -> Result<(Uuid, crate::model::User, WebAuthnSession), DomainError> {
         let session_id = Uuid::try_parse(session_id_str)
             .map_err(|_| DomainError::BadRequest("Invalid identifier format".into()))?;
-        let (user, session) =
-            self.auth_repo.get_user_and_session(session_id, username, session_type).await?;
+        let (user, session) = self
+            .auth_repo
+            .get_user_and_session(session_id, username, session_type)
+            .await?;
         Ok((session_id, user, session))
     }
 

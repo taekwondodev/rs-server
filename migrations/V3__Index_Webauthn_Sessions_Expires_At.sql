@@ -1,0 +1,1 @@
+CREATE INDEX idx_webauthn_sessions_expires_at ON webauthn_sessions(expires_at);

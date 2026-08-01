@@ -66,6 +66,7 @@ impl From<FinishRequest> for domain_auth::FinishCommand {
             username: req.username,
             session_id: req.session_id,
             credentials: req.credentials,
+            client: domain_auth::ClientContext::default(),
         }
     }
 }

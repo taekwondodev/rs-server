@@ -34,8 +34,11 @@ pub async fn start_servers(public_app: Router, internal_app: Router, config: &Se
 
     tracing::info!("Server listening on http://{}", config.bind_addr);
 
-    let public_serve =
-        axum::serve(public_listener, public_app).with_graceful_shutdown(shutdown_signal());
+    let public_serve = axum::serve(
+        public_listener,
+        public_app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal());
     let internal_serve =
         axum::serve(internal_listener, internal_app).with_graceful_shutdown(shutdown_signal());
 

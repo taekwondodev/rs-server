@@ -15,4 +15,5 @@ pub struct FinishCommand {
     pub username: Box<str>,
     pub session_id: Box<str>,
     pub credentials: serde_json::Value,
+    pub client: crate::security_audit::ClientContext,
 }

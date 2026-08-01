@@ -3,7 +3,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use domain_auth::{AccessTokenClaims, DomainError, JwtService, RefreshTokenClaims, TokenPair, UserId};
+use domain_auth::{
+    AccessTokenClaims, ClientContext, DomainError, JwtService, RefreshTokenClaims, SecurityEvent,
+    TokenPair, UserId,
+};
 use redis::aio::ConnectionManager;
 use rs_repository_utils::{
     BaseRedisRepository, CircuitBreaker, HealthIndicator, RepositoryError, ServiceHealth,
@@ -116,12 +119,24 @@ impl JwtService for Jwt {
         self.build_token_pair(user_id, username, role, Some(family_id.to_owned()))
     }
 
-    async fn validate_refresh(&self, token: &str) -> Result<RefreshTokenClaims, DomainError> {
-        let claims = self.crypto.decode_refresh_unchecked(token)?;
+    async fn validate_refresh(
+        &self,
+        token: &str,
+        client: &ClientContext,
+    ) -> Result<RefreshTokenClaims, DomainError> {
+        let claims = self.crypto.decode_refresh_unchecked(token).inspect_err(|_| {
+            SecurityEvent::TokenRejected { reason: "invalid or expired refresh token", client }.emit();
+        })?;
 
         match self.validate_session(claims.jti()).await {
             Ok(()) => Ok(claims),
             Err(_) => {
+                SecurityEvent::TokenReused {
+                    user_id: *claims.sub(),
+                    family_id: claims.family_id(),
+                    client,
+                }
+                .emit();
                 let _ = self.revoke_family(claims.family_id()).await;
                 Err(DomainError::Unauthorized("Session not found or token reused"))
             }
