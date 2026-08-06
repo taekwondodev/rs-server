@@ -36,43 +36,15 @@ Rule of thumb: **`domain-*` crates depend on nothing infra/HTTP-flavored, ever.*
 crates depend on their one `domain-*` crate and nothing else in the workspace (never on each
 other). The bin crate is the only place that's allowed to know every concrete type at once.
 
-**Ports stay generic, never `dyn Trait` — with one deliberate exception.** `AuthService<R:
-AuthRepository, J: JwtService>` and `http::AppState<R, J>` are monomorphized generics — zero-cost
-static dispatch. Don't introduce `Box`/`Arc<dyn Trait>` for "flexibility"; the workspace boundary
-already gives you swappable adapters at compile time. `rs_repository_utils::HealthIndicator` is the one
-exception, and it's deliberate: see **Health Checks** below for why.
+Ports stay generic (monomorphized, zero-cost static dispatch), with one deliberate `dyn Trait`
+exception for health checks; domain errors flow through a single `DomainError` type with one
+boundary-conversion fn per infra crate. Rationale for both: ADR-0001, ADR-0002.
 
-**Errors**: `domain_auth::DomainError` (thiserror) is the only error type ports return. Infra crate
-method bodies use an inner `anyhow::Result` so infra errors (`tokio_postgres::Error`,
-`redis::RedisError`, `rs_repository_utils::RepositoryError`, etc.) auto-convert via anyhow's
-blanket `From`, then exactly one boundary-conversion fn per crate (`classify_repo_error` in both
-`infra-postgres/src/repo.rs` and `infra-jwt/src/service.rs`) runs per public trait method — not per
-call site. It downcasts to `RepositoryError` to map `CircuitBreakerOpen` → `ServiceUnavailable` and
-`InvalidQuery` → `BadRequest`; everything else (including any other `RepositoryError` variant)
-falls through to `DomainError::Internal`. The two copies are intentionally duplicated, not shared
-— `infra-postgres`/`infra-jwt` never depend on each other, and centralizing the fn in `domain-auth`
-would leak infra vocabulary (circuit breakers, connection pools) into the "zero infra deps" domain
-crate, which is a stronger coupling than the trait-based exceptions in **Health Checks** below.
-`http::HttpError` wraps `DomainError` and is the only place `IntoResponse` for an error exists.
+`domain-shared` is a shared kernel — identifiers only. See the `UserId` entry in `CONTEXT.md`; the
+moment it grows a business rule, it belongs in a specific domain crate instead.
 
-**Shared kernel**: `domain-shared::UserId` exists so a future bounded context (payments, etc.) can
-say "which user" without depending on the whole `domain-auth` crate. Keep `domain-shared` to
-identifiers/value objects only — the moment it grows a business rule, it belongs in a specific
-domain crate instead.
-
-**Health checks**: `check_db`/`check_redis` used to live directly on `AuthRepository`/`JwtService`
-— that was a leftover from the pre-workspace monolith, not a design choice, and it meant every new
-bounded context's repository port would either duplicate health-check methods that have nothing to
-do with its business rules, or `/healthz` would stay permanently auth-only. Fixed by extracting
-`rs_repository_utils::HealthIndicator` (`name()` + `check()`), implemented directly on `Repository`/`Jwt`
-alongside their real ports, aggregated via `rs_repository_utils::check_all(&[Arc<dyn HealthIndicator>])` in
-`http::AppState`. This is the one legitimate `dyn Trait` in the workspace: the set of checkable
-resources is open-ended (today: postgres, redis; tomorrow: a payment gateway, a message queue) in
-a way `AuthService<R, J>`'s fixed generic pair can't express. To add a new indicator: `impl
-HealthIndicator` on the adapter, push it into the `health_indicators` vec built in `rs-server`'s
-`main.rs` — no `domain-*` crate needs to change. Surfacing it over HTTP means adding a field to
-`http::dto::response::HealthChecks` by hand (that wire type is intentionally a fixed struct, not
-`HealthReport`'s open map — see the doc comment on `HealthResponse::from_report`).
+To add a new health indicator: `impl HealthIndicator` on the adapter, push it into the
+`health_indicators` vec built in `rs-server`'s `main.rs` — no `domain-*` crate needs to change.
 
 ---
 
@@ -221,17 +193,25 @@ CORS is browser-only enforcement — native and mobile clients ignore it entirel
 
 The auth module is complete. Read before touching.
 
-- Access token: EdDSA, stateless, 5 min. Never add a Redis lookup for it.
-- Refresh token: HS256, stateful, 24 h. Always validated against Redis whitelist.
-- Redis: `session:{jti} → "1"` + `family:{family_id} → jti`, both with TTL. Self-cleaning.
-- Reuse detection: a valid JWT whose `session:{jti}` is missing in Redis means replay after rotation → `revoke_family` kills the chain.
-- HKDF: one `JWT_SECRET_KEY` derives two independent keys internally. Don't split it into two env variables.
+- Token strategy — stateless EdDSA access token vs. stateful HS256 refresh token, Redis whitelist,
+  family-based reuse detection: ADR-0003.
+- HKDF single-secret key derivation: ADR-0004.
+- Claims data/crypto split between `domain-auth/claims.rs` and `infra-jwt/crypto.rs`: ADR-0005.
+- Domain vocabulary (`Session`, `Family`, `Reuse detection`): `CONTEXT.md`.
 
-Claims are split across two crates on purpose — don't merge them back:
-- `crates/domain-auth/src/claims.rs`: `AccessTokenClaims`/`RefreshTokenClaims` — plain data
-  (fields, `new()`, getters). To extend token claims, add fields here and update `new()`.
-- `crates/infra-jwt/src/crypto.rs`: `JwtCrypto` — all encode/decode/HKDF/PEM logic. `to_token`/
-  `validate` are **not** methods on the claim structs; they're inherent methods on `JwtCrypto`
-  operating on the claim structs' public fields. Adding a field to a claims struct in
-  `domain-auth` never requires touching `infra-jwt`'s crypto code unless the new field changes
-  validation rules (e.g. a new required claim to check on decode).
+---
+
+## Dev cycle
+
+### Issue tracker
+
+GitHub Issues via the `gh` CLI (repo: `taekwondodev/rs-server`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical roles, label strings unchanged (`needs-triage`, `needs-info`,
+`ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
