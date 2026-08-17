@@ -44,6 +44,7 @@ macro_rules! impl_validated_json_request {
 
 const MAX_USERNAME_LEN: usize = 64;
 const MAX_ROLE_LEN: usize = 32;
+const MAX_CREDENTIAL_NAME_LEN: usize = 64;
 
 #[inline]
 pub fn validate_text(text: &str, field: &str) -> Result<(), HttpError> {
@@ -100,4 +101,41 @@ pub fn validate_json_credentials(credentials: &serde_json::Value) -> Result<(), 
         return Err(HttpError::bad_request("Invalid credentials"));
     }
     Ok(())
+}
+
+#[inline]
+pub fn validate_credential_name(name: &str) -> Result<(), HttpError> {
+    if name.trim().is_empty() {
+        return Err(HttpError::bad_request("Credential name cannot be empty"));
+    }
+    if name.len() > MAX_CREDENTIAL_NAME_LEN {
+        return Err(HttpError::bad_request(format!(
+            "Credential name must be at most {MAX_CREDENTIAL_NAME_LEN} characters"
+        )));
+    }
+    Ok(())
+}
+
+/// Optional variant for request bodies where the name is never required.
+#[inline]
+pub fn validate_optional_credential_name(name: Option<&str>) -> Result<(), HttpError> {
+    if let Some(name) = name {
+        validate_credential_name(name)?;
+    }
+    Ok(())
+}
+
+/// Decodes a base64url (URL-safe, unpadded) credential id from a path
+/// parameter. Credential ids are raw bytes (BYTEA) on the DB side, so they
+/// must be encoded to travel in a URI. Empty input is refused: WebAuthn
+/// credential ids are never empty.
+#[inline]
+pub fn decode_credential_id(encoded: &str) -> Result<Vec<u8>, HttpError> {
+    if encoded.is_empty() {
+        return Err(HttpError::bad_request("Invalid credential id"));
+    }
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    URL_SAFE_NO_PAD
+        .decode(encoded)
+        .map_err(|_| HttpError::bad_request("Invalid credential id"))
 }

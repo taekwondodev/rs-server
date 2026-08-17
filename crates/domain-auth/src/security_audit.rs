@@ -31,6 +31,12 @@ pub enum SecurityEvent<'a> {
     Unauthorized { client: &'a ClientContext },
     #[cfg_attr(not(feature = "strict"), allow(dead_code))]
     AdminDenied { user_id: UserId, client: &'a ClientContext },
+    /// An authenticated user added a new passkey to their account. Distinct
+    /// from `AuthSuccess { event: "registration" }` — this is a credential
+    /// management action on an already-active account, not a first registration.
+    CredentialAdded { user_id: UserId, client: &'a ClientContext },
+    /// An authenticated user removed one of their passkeys.
+    CredentialRemoved { user_id: UserId, client: &'a ClientContext },
     #[cfg(feature = "gateway")]
     #[cfg_attr(not(feature = "strict"), allow(dead_code))]
     GatewayForward { user_id: UserId, client: &'a ClientContext },
@@ -56,6 +62,12 @@ impl SecurityEvent<'_> {
             }
             Self::AdminDenied { user_id, client } => {
                 tracing::warn!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "access.admin_denied")
+            }
+            Self::CredentialAdded { user_id, client } => {
+                tracing::info!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "credential.added")
+            }
+            Self::CredentialRemoved { user_id, client } => {
+                tracing::info!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "credential.removed")
             }
             #[cfg(feature = "gateway")]
             Self::GatewayForward { user_id, client } => {

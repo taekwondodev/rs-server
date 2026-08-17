@@ -72,6 +72,35 @@ impl IntoResponse for TokenResponse {
     }
 }
 
+/// One entry of `GET /auth/credentials`. The credential id is binary on the
+/// wire, so it is base64url-encoded (URL-safe, unpadded) here.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct CredentialResponse {
+    #[cfg_attr(feature = "openapi", schema(example = "AQIDBAUGBwgJCgsMDQ4PEA"))]
+    pub id: Box<str>,
+    #[cfg_attr(feature = "openapi", schema(example = "MacBook Pro"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<Box<str>>,
+    #[cfg_attr(feature = "openapi", schema(example = "2026-08-17T12:00:00Z"))]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[cfg_attr(feature = "openapi", schema(example = "2026-08-17T12:00:00Z"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl From<domain_auth::Credential> for CredentialResponse {
+    fn from(c: domain_auth::Credential) -> Self {
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        Self {
+            id: URL_SAFE_NO_PAD.encode(&c.id).into_boxed_str(),
+            name: c.name,
+            created_at: c.created_at,
+            last_used_at: c.last_used_at,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct HealthResponse {

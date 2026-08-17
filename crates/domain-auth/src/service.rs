@@ -6,16 +6,19 @@ use uuid::Uuid;
 use webauthn_rs::{
     Webauthn,
     prelude::{
-        PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential,
+        CredentialID, Passkey, PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential,
         RegisterPublicKeyCredential,
     },
 };
 
 use crate::{
-    commands::{BeginCommand, FinishCommand},
+    commands::{
+        AddCredentialCommand, BeginCommand, FinishAddCredentialCommand, FinishCommand,
+        RemoveCredentialCommand,
+    },
     dto::{BeginResult, MessageResult, RegistrationKind, TokenResult},
     error::DomainError,
-    model::{RegistrationOutcome, WebAuthnSession},
+    model::{Credential, RegistrationOutcome, User, WebAuthnSession},
     security_audit::{ClientContext, SecurityEvent},
     traits::{AuthRepository, JwtService},
 };
@@ -59,16 +62,14 @@ where
             }
         };
 
-        let (ccr, passkey_registration) = self.webauthn.start_passkey_registration(
-            user.id.into_inner(),
-            &cmd.username,
-            &cmd.username,
-            None,
-        )?;
+        let exclude_credentials = match &kind {
+            // A fresh user holds no credentials yet; skip the listing query.
+            RegistrationKind::Fresh => Vec::new(),
+            RegistrationKind::Resumed => self.existing_credential_ids(user.id).await?,
+        };
 
-        let (session_data, opts) = Self::prepare_session_data(passkey_registration, ccr)?;
         let result = self
-            .create_session_response(user.id, session_data, opts, "registration")
+            .begin_passkey_ceremony(user.id, &cmd.username, "registration", exclude_credentials)
             .await?;
         Ok((result, kind))
     }
@@ -78,26 +79,12 @@ where
             .get_user_and_session(&cmd.session_id, &cmd.username, "registration")
             .await?;
 
-        let passkey_registration = serde_json::from_value::<PasskeyRegistration>(session.data)?;
-        let credentials = serde_json::from_value::<RegisterPublicKeyCredential>(cmd.credentials)?;
-
         let passkey = self
-            .webauthn
-            .finish_passkey_registration(&credentials, &passkey_registration)
-            .map_err(|e| {
-                SecurityEvent::AuthFailure {
-                    user_id: user.id,
-                    event: "registration",
-                    reason: "credential verification failed",
-                    client: &cmd.client,
-                }
-                .emit();
-                tracing::warn!(error = %e, "registration.credential_verification_failed");
-                DomainError::BadRequest("Invalid credentials".into())
-            })?;
+            .verify_registration_attestation(&user, session.data, cmd.credentials, "registration", &cmd.client)
+            .await?;
 
         self.auth_repo
-            .complete_registration(user.id, &user.username, &passkey)
+            .complete_registration(user.id, &user.username, &passkey, cmd.name.as_deref())
             .await?;
         self.cleanup_session(session_id);
 
@@ -188,6 +175,70 @@ where
         ))
     }
 
+    /// Starts the ceremony for adding another passkey to an already-active
+    /// account. Identity comes from the authenticated `AddCredentialCommand`
+    /// (claims), and the existing credential ids are passed as
+    /// `excludeCredentials` so the same authenticator cannot be re-enrolled.
+    pub async fn begin_add_credential(
+        &self,
+        cmd: AddCredentialCommand,
+    ) -> Result<BeginResult, DomainError> {
+        let exclude_credentials = self.existing_credential_ids(cmd.user_id).await?;
+        self.begin_passkey_ceremony(cmd.user_id, &cmd.username, "credential_add", exclude_credentials)
+            .await
+    }
+
+    pub async fn finish_add_credential(
+        &self,
+        cmd: FinishAddCredentialCommand,
+    ) -> Result<MessageResult, DomainError> {
+        let (session_id, user, session) = self
+            .get_user_and_session_by_id(&cmd.session_id, cmd.user_id, "credential_add")
+            .await?;
+
+        let passkey = self
+            .verify_registration_attestation(&user, session.data, cmd.credentials, "credential_add", &cmd.client)
+            .await?;
+
+        self.auth_repo
+            .store_credential(user.id, &passkey, cmd.name.as_deref())
+            .await?;
+        self.cleanup_session(session_id);
+
+        SecurityEvent::CredentialAdded {
+            user_id: user.id,
+            client: &cmd.client,
+        }
+        .emit();
+
+        Ok(MessageResult {
+            message: Cow::Borrowed("Credential added successfully!"),
+        })
+    }
+
+    pub async fn list_credentials(&self, user_id: UserId) -> Result<Vec<Credential>, DomainError> {
+        self.auth_repo.list_credentials(user_id).await
+    }
+
+    pub async fn remove_credential(
+        &self,
+        cmd: RemoveCredentialCommand,
+    ) -> Result<MessageResult, DomainError> {
+        self.auth_repo
+            .remove_credential(cmd.user_id, &cmd.cred_id)
+            .await?;
+
+        SecurityEvent::CredentialRemoved {
+            user_id: cmd.user_id,
+            client: &cmd.client,
+        }
+        .emit();
+
+        Ok(MessageResult {
+            message: Cow::Borrowed("Credential removed successfully!"),
+        })
+    }
+
     pub async fn refresh(
         &self,
         refresh_token: &str,
@@ -249,6 +300,73 @@ where
         })
     }
 
+    /// The user's registered credential ids, ready to hand to
+    /// `start_passkey_registration` as `excludeCredentials`. Empty for users
+    /// with no credentials yet.
+    async fn existing_credential_ids(
+        &self,
+        user_id: UserId,
+    ) -> Result<Vec<CredentialID>, DomainError> {
+        let credentials = self.auth_repo.list_credentials(user_id).await?;
+        Ok(credentials
+            .iter()
+            .map(|c| CredentialID::from(c.id.as_slice()))
+            .collect())
+    }
+
+    /// The WebAuthn registration ceremony shared by first registration and
+    /// add-credential: start the challenge with the user's existing
+    /// credentials excluded, persist the server-side state as a session of
+    /// the given `purpose`, and hand the client options back.
+    async fn begin_passkey_ceremony(
+        &self,
+        user_id: UserId,
+        username: &str,
+        purpose: &str,
+        exclude_credentials: Vec<CredentialID>,
+    ) -> Result<BeginResult, DomainError> {
+        let (ccr, passkey_registration) = self.webauthn.start_passkey_registration(
+            user_id.into_inner(),
+            username,
+            username,
+            Some(exclude_credentials),
+        )?;
+
+        let (session_data, opts) = Self::prepare_session_data(passkey_registration, ccr)?;
+        self.create_session_response(user_id, session_data, opts, purpose)
+            .await
+    }
+
+    /// The attestation-verification step shared by first registration and
+    /// add-credential: deserialize the stored ceremony state and the client
+    /// credential, verify them, and map verification failure to the same
+    /// audit event + `BadRequest` both flows already used.
+    async fn verify_registration_attestation(
+        &self,
+        user: &User,
+        session_data: serde_json::Value,
+        credentials: serde_json::Value,
+        event: &str,
+        client: &ClientContext,
+    ) -> Result<Passkey, DomainError> {
+        let passkey_registration = serde_json::from_value::<PasskeyRegistration>(session_data)?;
+        let credentials = serde_json::from_value::<RegisterPublicKeyCredential>(credentials)?;
+
+        self.webauthn
+            .finish_passkey_registration(&credentials, &passkey_registration)
+            .map_err(|e| {
+                SecurityEvent::AuthFailure {
+                    user_id: user.id,
+                    event,
+                    reason: "credential verification failed",
+                    client,
+                }
+                .emit();
+                tracing::warn!(error = %e, "credential_verification_failed");
+                DomainError::BadRequest("Invalid credentials".into())
+            })
+    }
+
     fn prepare_session_data<T, U>(
         session_obj: T,
         options_obj: U,
@@ -292,6 +410,21 @@ where
         let (user, session) = self
             .auth_repo
             .get_user_and_session(session_id, username, session_type)
+            .await?;
+        Ok((session_id, user, session))
+    }
+
+    async fn get_user_and_session_by_id(
+        &self,
+        session_id_str: &str,
+        user_id: UserId,
+        session_type: &str,
+    ) -> Result<(Uuid, crate::model::User, WebAuthnSession), DomainError> {
+        let session_id = Uuid::try_parse(session_id_str)
+            .map_err(|_| DomainError::BadRequest("Invalid identifier format".into()))?;
+        let (user, session) = self
+            .auth_repo
+            .get_user_and_session_by_id(session_id, user_id, session_type)
             .await?;
         Ok((session_id, user, session))
     }

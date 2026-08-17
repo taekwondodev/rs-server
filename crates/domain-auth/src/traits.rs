@@ -6,7 +6,7 @@ use webauthn_rs::prelude::Passkey;
 use crate::{
     claims::{AccessTokenClaims, RefreshTokenClaims},
     error::DomainError,
-    model::{RegistrationOutcome, User, WebAuthnSession},
+    model::{Credential, RegistrationOutcome, User, WebAuthnSession},
     security_audit::ClientContext,
 };
 
@@ -22,10 +22,31 @@ pub trait AuthRepository: Send + Sync {
         username: &str,
         purpose: &str,
     ) -> impl Future<Output = Result<(User, WebAuthnSession), DomainError>> + Send;
+    fn get_user_and_session_by_id(
+        &self,
+        session_id: Uuid,
+        user_id: UserId,
+        purpose: &str,
+    ) -> impl Future<Output = Result<(User, WebAuthnSession), DomainError>> + Send;
     fn get_active_user_with_credential(
         &self,
         username: &str,
     ) -> impl Future<Output = Result<(User, Vec<Passkey>), DomainError>> + Send;
+    fn list_credentials(
+        &self,
+        user_id: UserId,
+    ) -> impl Future<Output = Result<Vec<Credential>, DomainError>> + Send;
+    fn store_credential(
+        &self,
+        user_id: UserId,
+        passkey: &Passkey,
+        name: Option<&str>,
+    ) -> impl Future<Output = Result<(), DomainError>> + Send;
+    fn remove_credential(
+        &self,
+        user_id: UserId,
+        cred_id: &[u8],
+    ) -> impl Future<Output = Result<(), DomainError>> + Send;
     fn create_webauthn_session(
         &self,
         user_id: UserId,
@@ -46,6 +67,7 @@ pub trait AuthRepository: Send + Sync {
         user_id: UserId,
         username: &str,
         passkey: &Passkey,
+        name: Option<&str>,
     ) -> impl Future<Output = Result<(), DomainError>> + Send;
 }
 

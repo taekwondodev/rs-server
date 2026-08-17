@@ -1,7 +1,7 @@
 use domain_auth::DomainError;
 
 use crate::{
-    dto::{BeginRequest, FinishRequest},
+    dto::{BeginRequest, FinishCredentialRequest, FinishRequest},
     error::HttpError,
     validation::Validatable,
 };
@@ -96,6 +96,7 @@ fn test_finish_request_valid() {
         username: "john_doe".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
+        name: None,
     };
 
     let result = request.validate();
@@ -113,6 +114,7 @@ fn test_finish_request_username_empty() {
         username: "".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
+        name: None,
     };
 
     let result = request.validate();
@@ -130,6 +132,7 @@ fn test_finish_request_username_too_short() {
         username: "ab".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials,
+        name: None,
     };
 
     let result = request.validate();
@@ -147,6 +150,7 @@ fn test_finish_request_session_id_empty() {
         username: "john_doe".into(),
         session_id: "".into(),
         credentials,
+        name: None,
     };
 
     let result = request.validate();
@@ -170,6 +174,7 @@ fn test_finish_request_session_id_whitespace() {
         username: "john_doe".into(),
         session_id: "   ".into(),
         credentials,
+        name: None,
     };
 
     let result = request.validate();
@@ -182,6 +187,7 @@ fn test_finish_request_credentials_null() {
         username: "john_doe".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!(null),
+        name: None,
     };
 
     let result = request.validate();
@@ -200,6 +206,7 @@ fn test_finish_request_credentials_not_object() {
         username: "john_doe".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!("not_an_object"),
+        name: None,
     };
 
     let result = request.validate();
@@ -218,6 +225,7 @@ fn test_finish_request_credentials_empty_object() {
         username: "john_doe".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!({}),
+        name: None,
     };
 
     let result = request.validate();
@@ -236,6 +244,7 @@ fn test_finish_request_credentials_array() {
         username: "john_doe".into(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
         credentials: serde_json::json!([1, 2, 3]),
+        name: None,
     };
 
     let result = request.validate();
@@ -248,6 +257,7 @@ fn test_finish_request_all_fields_invalid() {
         username: "".into(),
         session_id: "".into(),
         credentials: serde_json::json!(null),
+        name: None,
     };
 
     let result = request.validate();
@@ -376,4 +386,94 @@ fn test_begin_request_unknown_field_rejected() {
 fn test_finish_request_unknown_field_rejected() {
     let json = r#"{"username":"alice","session_id":"550e8400-e29b-41d4-a716-446655440000","credentials":{"id":"x"},"extra":"field"}"#;
     assert!(serde_json::from_str::<FinishRequest>(json).is_err());
+}
+
+// ---------------------------------------------------------------------------
+// FinishCredentialRequest (add-passkey ceremony)
+// ---------------------------------------------------------------------------
+
+fn finish_credential_request(body: serde_json::Value) -> FinishCredentialRequest {
+    serde_json::from_value(body).expect("valid JSON body")
+}
+
+#[test]
+fn test_finish_credential_request_valid_without_name() {
+    let req = finish_credential_request(serde_json::json!({
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"}
+    }));
+    assert!(req.validate().is_ok());
+}
+
+#[test]
+fn test_finish_credential_request_valid_with_name() {
+    let req = finish_credential_request(serde_json::json!({
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"},
+        "name": "MacBook Pro"
+    }));
+    assert!(req.validate().is_ok());
+}
+
+#[test]
+fn test_finish_credential_request_rejects_missing_session_id() {
+    // A missing required field fails at deserialization, before validation.
+    let result = serde_json::from_value::<FinishCredentialRequest>(serde_json::json!({
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"}
+    }));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_finish_credential_request_rejects_empty_name() {
+    let req = finish_credential_request(serde_json::json!({
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"},
+        "name": "  "
+    }));
+    assert!(matches!(req.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+}
+
+#[test]
+fn test_finish_credential_request_rejects_too_long_name() {
+    let req = finish_credential_request(serde_json::json!({
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"},
+        "name": "x".repeat(65)
+    }));
+    assert!(matches!(req.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+}
+
+#[test]
+fn test_finish_credential_request_rejects_unknown_fields() {
+    // deny_unknown_fields: a username here would mean the client is trying
+    // to bind the ceremony to a different account than the Bearer token.
+    let result = serde_json::from_value::<FinishCredentialRequest>(serde_json::json!({
+        "username": "mallory",
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "credentials": {"id": "AQID", "rawId": "AQID", "type": "public-key"}
+    }));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_finish_request_with_name_valid() {
+    let request = FinishRequest {
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+        credentials: serde_json::json!({"id": "AQID", "rawId": "AQID", "type": "public-key"}),
+        name: Some("iPhone".into()),
+    };
+    assert!(request.validate().is_ok());
+}
+
+#[test]
+fn test_finish_request_with_invalid_name_rejected() {
+    let request = FinishRequest {
+        username: "john_doe".into(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".into(),
+        credentials: serde_json::json!({"id": "AQID", "rawId": "AQID", "type": "public-key"}),
+        name: Some("x".repeat(65).into()),
+    };
+    assert!(matches!(request.validate(), Err(HttpError(DomainError::BadRequest(_)))));
 }

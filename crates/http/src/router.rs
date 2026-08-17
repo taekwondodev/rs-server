@@ -1,7 +1,7 @@
 
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use domain_auth::{AuthRepository, JwtService};
 use tower::ServiceBuilder;
@@ -22,6 +22,10 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
         handler::finish_register,
         handler::begin_login,
         handler::finish_login,
+        handler::begin_add_credential,
+        handler::finish_add_credential,
+        handler::list_credentials,
+        handler::remove_credential,
         handler::refresh,
         handler::logout,
     ),
@@ -29,7 +33,9 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
         schemas(
             crate::dto::BeginRequest,
             crate::dto::FinishRequest,
+            crate::dto::FinishCredentialRequest,
             crate::dto::BeginResponse,
+            crate::dto::CredentialResponse,
             crate::dto::MessageResponse,
             crate::dto::TokenResponse,
             crate::error::ErrorResponse,
@@ -61,6 +67,13 @@ where
         .route("/auth/register/finish", post(handler::finish_register))
         .route("/auth/login/begin", post(handler::begin_login))
         .route("/auth/login/finish", post(handler::finish_login))
+        .route("/auth/credentials/begin", post(handler::begin_add_credential))
+        .route("/auth/credentials/finish", post(handler::finish_add_credential))
+        .route("/auth/credentials", get(handler::list_credentials))
+        .route(
+            "/auth/credentials/{cred_id}",
+            delete(handler::remove_credential),
+        )
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
         .with_state(state.clone())
@@ -82,6 +95,13 @@ where
         .route("/auth/register/finish", post(handler::finish_register))
         .route("/auth/login/begin", post(handler::begin_login))
         .route("/auth/login/finish", post(handler::finish_login))
+        .route("/auth/credentials/begin", post(handler::begin_add_credential))
+        .route("/auth/credentials/finish", post(handler::finish_add_credential))
+        .route("/auth/credentials", get(handler::list_credentials))
+        .route(
+            "/auth/credentials/{cred_id}",
+            delete(handler::remove_credential),
+        )
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
         .with_state(state.clone());
