@@ -37,6 +37,17 @@ pub enum SecurityEvent<'a> {
     CredentialAdded { user_id: UserId, client: &'a ClientContext },
     /// An authenticated user removed one of their passkeys.
     CredentialRemoved { user_id: UserId, client: &'a ClientContext },
+    /// A user generated or rotated their recovery-code batch. The batch is
+    /// shown exactly once and never logged, so this event only records that a
+    /// new batch exists (setup or rotation).
+    RecoveryCodeGenerated { user_id: UserId, client: &'a ClientContext },
+    /// A successful account recovery: the user presented a valid recovery code
+    /// and re-enrolled a passkey. High priority — this is a no-hardware access
+    /// to the account.
+    RecoveryCodeUsed { user_id: UserId, client: &'a ClientContext },
+    /// A failed recovery-code verification, or the anti-brute-force lockout
+    /// tripping. Every failed attempt and every lockout is audited.
+    RecoveryFailed { user_id: UserId, reason: &'a str, client: &'a ClientContext },
     #[cfg(feature = "gateway")]
     #[cfg_attr(not(feature = "strict"), allow(dead_code))]
     GatewayForward { user_id: UserId, client: &'a ClientContext },
@@ -68,6 +79,15 @@ impl SecurityEvent<'_> {
             }
             Self::CredentialRemoved { user_id, client } => {
                 tracing::info!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "credential.removed")
+            }
+            Self::RecoveryCodeGenerated { user_id, client } => {
+                tracing::info!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "recovery.code_generated")
+            }
+            Self::RecoveryCodeUsed { user_id, client } => {
+                tracing::error!(security = true, %user_id, ip = ?client.ip, user_agent = ?client.user_agent, "recovery.code_used")
+            }
+            Self::RecoveryFailed { user_id, reason, client } => {
+                tracing::warn!(security = true, %user_id, reason, ip = ?client.ip, user_agent = ?client.user_agent, "recovery.failed")
             }
             #[cfg(feature = "gateway")]
             Self::GatewayForward { user_id, client } => {

@@ -103,6 +103,26 @@ pub fn validate_json_credentials(credentials: &serde_json::Value) -> Result<(), 
     Ok(())
 }
 
+/// Recovery codes are exactly 16 characters from a fixed alphabet, no
+/// ambiguous characters. We validate the length and charset at the boundary so
+/// an obviously malformed code fails fast as a 400 rather than reaching the
+/// constant-time hash comparison.
+const MAX_RECOVERY_CODE_LEN: usize = 16;
+
+#[inline]
+pub fn validate_recovery_code(code: &str) -> Result<(), HttpError> {
+    if code.len() != MAX_RECOVERY_CODE_LEN {
+        return Err(HttpError::bad_request(
+            "Recovery code must be exactly 16 characters",
+        ));
+    }
+    const ALPHABET: &str = "23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
+    if !code.chars().all(|c| ALPHABET.contains(c)) {
+        return Err(HttpError::bad_request("Recovery code contains invalid characters"));
+    }
+    Ok(())
+}
+
 #[inline]
 pub fn validate_credential_name(name: &str) -> Result<(), HttpError> {
     if name.trim().is_empty() {

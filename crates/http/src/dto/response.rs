@@ -42,6 +42,31 @@ impl From<domain_auth::MessageResult> for MessageResponse {
     }
 }
 
+/// The plaintext recovery-code batch, returned exactly once from
+/// `/auth/recovery/generate` and `/auth/recovery/rotate`. The user saves these
+/// offline; they are never stored and never retrievable again.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct RecoveryCodesResponse {
+    #[cfg_attr(
+        feature = "openapi",
+        schema(example = json!(["7WkP2s9fB4qXcD6e", "H3mRqZ8wT5yUaV2b"]))
+    )]
+    pub codes: Vec<Box<str>>,
+}
+
+impl From<domain_auth::RecoveryCodesResult> for RecoveryCodesResponse {
+    fn from(r: domain_auth::RecoveryCodesResult) -> Self {
+        Self { codes: r.codes }
+    }
+}
+
+impl IntoResponse for RecoveryCodesResponse {
+    fn into_response(self) -> axum::response::Response {
+        Json(self).into_response()
+    }
+}
+
 impl IntoResponse for MessageResponse {
     fn into_response(self) -> axum::response::Response {
         Json(self).into_response()

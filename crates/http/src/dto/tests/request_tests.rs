@@ -1,7 +1,7 @@
 use domain_auth::DomainError;
 
 use crate::{
-    dto::{BeginRequest, FinishCredentialRequest, FinishRequest},
+    dto::{BeginRequest, FinishCredentialRequest, FinishRequest, RecoveryVerifyRequest},
     error::HttpError,
     validation::Validatable,
 };
@@ -476,4 +476,55 @@ fn test_finish_request_with_invalid_name_rejected() {
         name: Some("x".repeat(65).into()),
     };
     assert!(matches!(request.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+}
+
+#[test]
+fn test_recovery_verify_request_valid() {
+    let request = RecoveryVerifyRequest {
+        username: "john_doe".into(),
+        recovery_code: "7WkP2s9fB4qXcD6e".into(),
+    };
+    assert!(request.validate().is_ok());
+}
+
+#[test]
+fn test_recovery_verify_request_rejects_wrong_code_length() {
+    // Recovery codes are exactly 16 chars — anything else is malformed.
+    for bad in ["short", "7WkP2s9fB4qXcD6eA7WkP2s"] {
+        let request = RecoveryVerifyRequest {
+            username: "john_doe".into(),
+            recovery_code: bad.into(),
+        };
+        assert!(matches!(request.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+    }
+}
+
+#[test]
+fn test_recovery_verify_request_rejects_invalid_characters() {
+    // Ambiguous/forbidden chars (0/O/1/I/l) are not in the recovery alphabet.
+    let request = RecoveryVerifyRequest {
+        username: "john_doe".into(),
+        recovery_code: "0O1Il2s9fB4qXcD6".into(),
+    };
+    assert!(matches!(request.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+}
+
+#[test]
+fn test_recovery_verify_request_rejects_bad_username() {
+    let request = RecoveryVerifyRequest {
+        username: "jo".into(), // < 3 chars
+        recovery_code: "7WkP2s9fB4qXcD6e".into(),
+    };
+    assert!(matches!(request.validate(), Err(HttpError(DomainError::BadRequest(_)))));
+}
+
+#[test]
+fn test_recovery_verify_request_rejects_unknown_fields() {
+    // deny_unknown_fields: no extraneous keys on the recovery surface.
+    let result = serde_json::from_value::<RecoveryVerifyRequest>(serde_json::json!({
+        "username": "john_doe",
+        "recovery_code": "7WkP2s9fB4qXcD6e",
+        "role": "admin"
+    }));
+    assert!(result.is_err());
 }

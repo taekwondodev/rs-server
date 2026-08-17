@@ -3,9 +3,11 @@ use std::sync::Arc;
 use std::future::Future;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use domain_auth::{
-    AuthRepository, Credential, DomainError, RegistrationOutcome, User, UserId,
+    AuthRepository, Credential, DomainError, RegistrationOutcome, RecoveryCodeRecord,
+    RecoveryLockout, RecoveryState, User, UserId,
 };
 use rs_repository_utils::{
     BaseRepository, CircuitBreaker, FromRow, HealthIndicator, RepositoryError, ServiceHealth,
@@ -13,7 +15,12 @@ use rs_repository_utils::{
 use uuid::Uuid;
 use webauthn_rs::prelude::Passkey;
 
-use crate::{queries, row::{CredentialRow, UserRow, WebAuthnSessionRow}};
+use crate::queries::recovery_codes as rc_queries;
+use crate::queries::recovery_state as rs_queries;
+use crate::{
+    queries,
+    row::{CredentialRow, RecoveryCodeRow, RecoveryStateRow, UserRow, WebAuthnSessionRow},
+};
 
 /// True when the error chain contains a Postgres unique-violation (23505) —
 /// e.g. re-registering the same authenticator despite excludeCredentials.
@@ -254,6 +261,25 @@ impl AuthRepository for Repository {
         found.ok_or(DomainError::Unauthorized("user or credentials not found"))
     }
 
+    async fn get_active_user_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<User>, DomainError> {
+        self.base
+            .execute_with_circuit_breaker("select", "users", |db| async move {
+                let client = db.get().await?;
+                let row = client
+                    .query_opt(queries::users::SELECT_ACTIVE_BY_USERNAME, &[&username])
+                    .await?;
+                let mapped: Option<User> = row
+                    .map(|r| UserRow::from_row(&r).map(User::from))
+                    .transpose()?;
+                Ok::<_, anyhow::Error>(mapped)
+            })
+            .await
+            .map_err(classify_repo_error)
+    }
+
     async fn list_credentials(&self, user_id: UserId) -> Result<Vec<Credential>, DomainError> {
         self.base
             .execute_with_circuit_breaker("select", "credentials", |db| async move {
@@ -456,5 +482,161 @@ impl AuthRepository for Repository {
             Err(e) => Err(classify_write_error(e)),
             Ok(()) => Ok(()),
         }
+    }
+
+    async fn replace_recovery_batch(
+        &self,
+        user_id: UserId,
+        codes: &[RecoveryCodeRecord],
+        last_rotated_at: DateTime<Utc>,
+    ) -> Result<(), DomainError> {
+        let user_id = user_id.into_inner();
+        self.base
+            .with_transaction("insert", "recovery_codes", |mut client| async move {
+                let tx = client.transaction().await?;
+
+                // Replace the old batch and the state atomically: delete the
+                // existing codes, insert the new ones, and record the rotation
+                // timestamp so the service can enforce the cooldown.
+                tx.execute(rc_queries::DELETE_BY_USER, &[&user_id]).await?;
+                for code in codes {
+                    tx.execute(
+                        rc_queries::INSERT,
+                        &[
+                            &user_id,
+                            &(code.position as i32),
+                            &code.salt,
+                            &code.hash,
+                        ],
+                    )
+                    .await?;
+                }
+                // Reset the lockout counters on batch replacement: generation
+                // and rotation are authenticated actions (the user proved
+                // identity via a passkey), so starting the recovery path fresh
+                // with zero attempts is correct — a successful login/rotation
+                // is not a recovery-code failure sequence.
+                tx.execute(
+                    rs_queries::UPSERT,
+                    &[
+                        &user_id,
+                        &(0_i32),
+                        &Option::<DateTime<Utc>>::None,
+                        &last_rotated_at,
+                    ],
+                )
+                .await?;
+
+                tx.commit().await?;
+                Ok::<(), anyhow::Error>(())
+            })
+            .await
+            .map_err(classify_repo_error)
+    }
+
+    async fn get_recovery_state(
+        &self,
+        user_id: UserId,
+    ) -> Result<Option<RecoveryState>, DomainError> {
+        let user_id = user_id.into_inner();
+        self.base
+            .execute_with_circuit_breaker("select", "recovery", |db| async move {
+                let client = db.get().await?;
+
+                let state_row = client
+                    .query_opt(rs_queries::SELECT_BY_USER, &[&user_id])
+                    .await?;
+
+                let code_rows = client
+                    .query(rc_queries::SELECT_BY_USER, &[&user_id])
+                    .await?;
+
+                let codes = code_rows
+                    .iter()
+                    .map(|row| Ok::<_, anyhow::Error>(RecoveryCodeRow::from_row(row)?.into()))
+                    .collect::<anyhow::Result<Vec<_>>>()?;
+
+                let mut state = match state_row {
+                    Some(row) => RecoveryState::from(RecoveryStateRow::from_row(&row)?),
+                    None => RecoveryState {
+                        codes: Vec::new(),
+                        lockout: RecoveryLockout::default(),
+                        last_rotated_at: None,
+                    },
+                };
+                state.codes = codes;
+
+                // A user with no recovery rows at all — no batch, no state row
+                // (or an unknown user) — reports None so the service can treat
+                // it as "no recovery codes configured".
+                if state.codes.is_empty() && state.last_rotated_at.is_none() {
+                    Ok::<_, anyhow::Error>(None)
+                } else {
+                    Ok(Some(state))
+                }
+            })
+            .await
+            .map_err(classify_repo_error)
+    }
+
+    async fn complete_recovery(
+        &self,
+        user_id: UserId,
+        username: &str,
+        passkey: &Passkey,
+        name: Option<&str>,
+    ) -> Result<(), DomainError> {
+        let user_id = user_id.into_inner();
+        let result: anyhow::Result<()> = self
+            .base
+            .with_transaction("insert", "recovery", |mut client| async move {
+                let tx = client.transaction().await?;
+
+                // Enroll the fresh passkey.
+                Repository::create_credential(&tx, user_id.into(), passkey, name).await?;
+                Repository::activate_user(&tx, username).await?;
+
+                // Invalidate the entire batch and reset the recovery state in
+                // the same transaction — a code can never be "half used".
+                tx.execute(rc_queries::CLEAR_BY_USER, &[&user_id]).await?;
+                tx.execute(rs_queries::DELETE_BY_USER, &[&user_id]).await?;
+
+                tx.commit().await?;
+                Ok::<(), anyhow::Error>(())
+            })
+            .await;
+
+        match result {
+            Err(e) => Err(classify_write_error(e)),
+            Ok(()) => Ok(()),
+        }
+    }
+
+    async fn set_recovery_lockout(
+        &self,
+        user_id: UserId,
+        lockout: &RecoveryLockout,
+    ) -> Result<(), DomainError> {
+        let user_id = user_id.into_inner();
+        self.base
+            .execute_with_circuit_breaker("update", "recovery_state", |db| async move {
+                let client = db.get().await?;
+                // Upsert preserving last_rotated_at (unset here — it is owned
+                // by the batch-replacement path).
+                client
+                    .execute(
+                        rs_queries::UPSERT,
+                        &[
+                            &user_id,
+                            &(lockout.attempts as i32),
+                            &lockout.locked_until,
+                            &Option::<DateTime<Utc>>::None,
+                        ],
+                    )
+                    .await?;
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
+            .map_err(classify_repo_error)
     }
 }

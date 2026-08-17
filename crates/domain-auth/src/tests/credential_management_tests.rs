@@ -165,6 +165,13 @@ impl AuthRepository for MockAuthRepository {
         unimplemented!("not exercised by management-flow tests")
     }
 
+    async fn get_active_user_by_username(
+        &self,
+        _username: &str,
+    ) -> Result<Option<User>, DomainError> {
+        unimplemented!("not exercised by management-flow tests")
+    }
+
     async fn list_credentials(&self, _user_id: UserId) -> Result<Vec<Credential>, DomainError> {
         Ok(self.credentials.lock().unwrap().clone())
     }
@@ -215,6 +222,40 @@ impl AuthRepository for MockAuthRepository {
         _username: &str,
         _passkey: &Passkey,
         _name: Option<&str>,
+    ) -> Result<(), DomainError> {
+        unimplemented!("not exercised by management-flow tests")
+    }
+
+    async fn replace_recovery_batch(
+        &self,
+        _user_id: UserId,
+        _codes: &[crate::recovery::RecoveryCodeRecord],
+        _last_rotated_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), DomainError> {
+        unimplemented!("not exercised by management-flow tests")
+    }
+
+    async fn get_recovery_state(
+        &self,
+        _user_id: UserId,
+    ) -> Result<Option<crate::recovery::RecoveryState>, DomainError> {
+        unimplemented!("not exercised by management-flow tests")
+    }
+
+    async fn complete_recovery(
+        &self,
+        _user_id: UserId,
+        _username: &str,
+        _passkey: &Passkey,
+        _name: Option<&str>,
+    ) -> Result<(), DomainError> {
+        unimplemented!("not exercised by management-flow tests")
+    }
+
+    async fn set_recovery_lockout(
+        &self,
+        _user_id: UserId,
+        _lockout: &crate::recovery::RecoveryLockout,
     ) -> Result<(), DomainError> {
         unimplemented!("not exercised by management-flow tests")
     }

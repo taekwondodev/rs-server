@@ -10,7 +10,8 @@ use domain_auth::{
 use crate::{
     dto::{
         BeginRequest, BeginResponse, CredentialResponse, FinishCredentialRequest, FinishRequest,
-        HealthResponse, MessageResponse, TokenResponse,
+        HealthResponse, MessageResponse, RecoveryCodesResponse, RecoveryVerifyRequest,
+        TokenResponse,
     },
     error::HttpError,
     middleware::metrics,
@@ -310,6 +311,142 @@ where
 
     let response = state.auth_service.remove_credential(cmd).await;
     metrics::track_credential_operation("remove", response.is_ok());
+    Ok(response?.into())
+}
+
+/// Generate a recovery-code batch for the authenticated user.
+///
+/// Returns 10 plaintext codes exactly once; only salted hashes are stored.
+/// Refuses with 409 if a batch already exists (use rotate to replace it).
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/recovery/generate",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "Recovery codes generated", body = RecoveryCodesResponse),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 409, description = "Recovery codes already exist", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn generate_recovery_codes<R, J>(
+    State(state): State<AppState<R, J>>,
+    claims: AccessTokenClaims,
+) -> Result<RecoveryCodesResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let cmd = domain_auth::ManageRecoveryCodesCommand {
+        user_id: claims.sub,
+        client: ClientContext::default(),
+    };
+    let response = state.auth_service.generate_recovery_codes(cmd).await;
+    metrics::track_recovery_operation("generate", response.is_ok());
+    Ok(response?.into())
+}
+
+/// Rotate the authenticated user's recovery-code batch.
+///
+/// Generates a fresh 10-code batch and invalidates the previous one. Enforces
+/// a 24h cooldown since the last rotation (409 within it).
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/recovery/rotate",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "Recovery codes rotated", body = RecoveryCodesResponse),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 409, description = "Cannot rotate within cooldown", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn rotate_recovery_codes<R, J>(
+    State(state): State<AppState<R, J>>,
+    claims: AccessTokenClaims,
+) -> Result<RecoveryCodesResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let cmd = domain_auth::ManageRecoveryCodesCommand {
+        user_id: claims.sub,
+        client: ClientContext::default(),
+    };
+    let response = state.auth_service.rotate_recovery_codes(cmd).await;
+    metrics::track_recovery_operation("rotate", response.is_ok());
+    Ok(response?.into())
+}
+
+/// Begin account recovery (no authentication).
+///
+/// The one flow where identity is username + a presented recovery code, not a
+/// passkey or token. On a valid code, returns the registration options for
+/// re-enrolling a fresh passkey. Failed/locked verifications return a generic
+/// 401 (no oracle on which condition fired).
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/recovery/begin",
+    tag = "Authentication",
+    request_body = RecoveryVerifyRequest,
+    responses(
+        (status = 200, description = "Recovery started; register a new passkey", body = BeginResponse),
+        (status = 400, description = "Invalid request data", body = crate::error::ErrorResponse),
+        (status = 401, description = "Invalid recovery code or locked", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn begin_recovery<R, J>(
+    State(state): State<AppState<R, J>>,
+    client: ClientContext,
+    request: RecoveryVerifyRequest,
+) -> Result<BeginResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let mut cmd: domain_auth::VerifyRecoveryCodeCommand = request.into();
+    cmd.client = client;
+    let response = state.auth_service.begin_recovery(cmd).await;
+    metrics::track_recovery_operation("begin", response.is_ok());
+    let (begin, _user) = response?;
+    Ok(begin.into())
+}
+
+/// Finish account recovery (no authentication).
+///
+/// Completes the re-registration of a fresh passkey and invalidates the user's
+/// entire recovery-code batch, so an old code can no longer recover the account.
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/recovery/finish",
+    tag = "Authentication",
+    request_body = FinishRequest,
+    responses(
+        (status = 200, description = "Account recovery completed", body = MessageResponse),
+        (status = 400, description = "Invalid request data or credentials", body = crate::error::ErrorResponse),
+        (status = 401, description = "Invalid recovery session", body = crate::error::ErrorResponse),
+        (status = 404, description = "User or session not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn finish_recovery<R, J>(
+    State(state): State<AppState<R, J>>,
+    client: ClientContext,
+    request: FinishRequest,
+) -> Result<MessageResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let mut cmd: domain_auth::FinishCommand = request.into();
+    cmd.client = client;
+    let response = state.auth_service.finish_recovery(cmd).await;
+    metrics::track_recovery_operation("finish", response.is_ok());
     Ok(response?.into())
 }
 

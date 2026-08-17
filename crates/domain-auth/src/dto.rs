@@ -29,3 +29,11 @@ pub struct TokenResult {
     pub message: Cow<'static, str>,
     pub access_token: Box<str>,
 }
+
+/// The plaintext recovery-code batch, returned to the caller exactly once at
+/// generation/rotation time. The codes are never stored and never retrievable
+/// again — `http` maps these into the wire response and discards them.
+#[derive(Debug)]
+pub struct RecoveryCodesResult {
+    pub codes: Vec<Box<str>>,
+}

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use chrono::Utc;
 use domain_shared::UserId;
 use uuid::Uuid;
 use webauthn_rs::{
@@ -14,11 +15,13 @@ use webauthn_rs::{
 use crate::{
     commands::{
         AddCredentialCommand, BeginCommand, FinishAddCredentialCommand, FinishCommand,
-        RemoveCredentialCommand,
+        ManageRecoveryCodesCommand, RemoveCredentialCommand, VerifyRecoveryCodeCommand,
     },
-    dto::{BeginResult, MessageResult, RegistrationKind, TokenResult},
+    dto::{BeginResult, MessageResult, RecoveryCodesResult, RegistrationKind, TokenResult},
     error::DomainError,
     model::{Credential, RegistrationOutcome, User, WebAuthnSession},
+    recovery::crypto::{generate_recovery_codes, generate_salt, hash_code, verify_code},
+    recovery::{CODES_PER_BATCH, LOCKOUT_THRESHOLD, RecoveryCodeRecord, RecoveryLockout},
     security_audit::{ClientContext, SecurityEvent},
     traits::{AuthRepository, JwtService},
 };
@@ -236,6 +239,236 @@ where
 
         Ok(MessageResult {
             message: Cow::Borrowed("Credential removed successfully!"),
+        })
+    }
+
+    // ---------------------------------------------------------------------
+    // Recovery codes — batch management (T2) and verification (T3)
+    // ---------------------------------------------------------------------
+
+    /// First-time generation of a recovery-code batch. Refuses if a batch
+    /// already exists for the user (`Conflict`) — an authenticated user must
+    /// use the rotate path to replace a batch, which enforces the cooldown.
+    /// Returns the plaintext codes exactly once; only salted hashes are stored.
+    pub async fn generate_recovery_codes(
+        &self,
+        cmd: ManageRecoveryCodesCommand,
+    ) -> Result<RecoveryCodesResult, DomainError> {
+        let state = self.auth_repo.get_recovery_state(cmd.user_id).await?;
+        if state.is_some() {
+            return Err(DomainError::Conflict("Recovery codes already exist"));
+        }
+
+        let (codes, records) = Self::make_batch();
+        self.auth_repo
+            .replace_recovery_batch(cmd.user_id, &records, Utc::now())
+            .await?;
+
+        SecurityEvent::RecoveryCodeGenerated {
+            user_id: cmd.user_id,
+            client: &cmd.client,
+        }
+        .emit();
+
+        Ok(RecoveryCodesResult {
+            codes: codes.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    /// Rotates the recovery-code batch: generates a fresh one and invalidates
+    /// the previous batch. Enforces a 24h cooldown since the last rotation so
+    /// a stolen session cannot burn through fresh batches in a loop. Returns
+    /// the new plaintext codes exactly once.
+    pub async fn rotate_recovery_codes(
+        &self,
+        cmd: ManageRecoveryCodesCommand,
+    ) -> Result<RecoveryCodesResult, DomainError> {
+        let state = self.auth_repo.get_recovery_state(cmd.user_id).await?;
+        if let Some(state) = state
+            && let Some(last) = state.last_rotated_at
+            && Utc::now() < last + chrono::Duration::hours(24)
+        {
+            return Err(DomainError::Conflict(
+                "Recovery codes cannot be rotated yet",
+            ));
+        }
+
+        let (codes, records) = Self::make_batch();
+        self.auth_repo
+            .replace_recovery_batch(cmd.user_id, &records, Utc::now())
+            .await?;
+
+        SecurityEvent::RecoveryCodeGenerated {
+            user_id: cmd.user_id,
+            client: &cmd.client,
+        }
+        .emit();
+
+        Ok(RecoveryCodesResult {
+            codes: codes.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    /// Verifies a presented recovery code for a user identified by username
+    /// (the one flow without a passkey or token). On success the code is NOT
+    /// consumed here — consumption happens atomically in `complete_recovery`
+    /// once the re-registration succeeds, so a failed attestation does not burn
+    /// a code. On failure the attempt counter grows and trips the lockout after
+    /// `LOCKOUT_THRESHOLD` consecutive failures; a locked account rejects
+    /// without consulting the hash. Returns the recovered user on success.
+    pub async fn verify_recovery_code(
+        &self,
+        cmd: VerifyRecoveryCodeCommand,
+    ) -> Result<User, DomainError> {
+        let user = self
+            .auth_repo
+            .get_active_user_by_username(&cmd.username)
+            .await?
+            .ok_or(DomainError::Unauthorized("invalid recovery code"))?;
+
+        let state = self
+            .auth_repo
+            .get_recovery_state(user.id)
+            .await?
+            .ok_or(DomainError::Unauthorized("invalid recovery code"))?;
+
+        // Locked? Reject without hashing — no oracle, no wasted work.
+        if let Some(locked_until) = state.lockout.locked_until
+            && Utc::now() < locked_until
+        {
+            SecurityEvent::RecoveryFailed {
+                user_id: user.id,
+                reason: "recovery path locked",
+                client: &cmd.client,
+            }
+            .emit();
+            return Err(DomainError::Unauthorized("invalid recovery code"));
+        }
+
+        let matched = state
+            .codes
+            .iter()
+            .find(|c| !c.used && verify_code(&cmd.code, &c.salt, &c.hash));
+
+        match matched {
+            Some(_) => {
+                // Success clears the failed-attempt counter. The code itself is
+                // consumed only in `complete_recovery`, atomically with the
+                // re-registration.
+                self.auth_repo
+                    .set_recovery_lockout(user.id, &RecoveryLockout::default())
+                    .await?;
+                Ok(user)
+            }
+            None => {
+                let attempts = state.lockout.attempts + 1;
+                let lockout = if attempts >= LOCKOUT_THRESHOLD {
+                    RecoveryLockout {
+                        attempts,
+                        locked_until: Some(Utc::now() + Self::lockout_duration(attempts)),
+                    }
+                } else {
+                    RecoveryLockout {
+                        attempts,
+                        locked_until: None,
+                    }
+                };
+                self.auth_repo
+                    .set_recovery_lockout(user.id, &lockout)
+                    .await?;
+
+                SecurityEvent::RecoveryFailed {
+                    user_id: user.id,
+                    reason: "invalid recovery code",
+                    client: &cmd.client,
+                }
+                .emit();
+
+                Err(DomainError::Unauthorized("invalid recovery code"))
+            }
+        }
+    }
+
+    /// Generates a batch of `CODES_PER_BATCH` codes and their salted-hash
+    /// records. Pure — no repo/audit side effects; the caller stores the
+    /// records and returns the plaintext.
+    fn make_batch() -> (Vec<String>, Vec<RecoveryCodeRecord>) {
+        let codes = generate_recovery_codes(CODES_PER_BATCH);
+        let records = codes
+            .iter()
+            .enumerate()
+            .map(|(i, code)| {
+                let salt = generate_salt();
+                RecoveryCodeRecord {
+                    position: i as u32,
+                    salt: salt.clone(),
+                    hash: hash_code(code, &salt),
+                    used: false,
+                }
+            })
+            .collect();
+        (codes, records)
+    }
+
+    /// Growing lockout cooldown: 30s for the first trip past the threshold,
+    /// doubling per additional failed attempt, capped at 1h. The `attempts`
+    /// counter is not reset while locked, so each extra failure extends the
+    /// window instead of re-triggering a flat 30s lock.
+    fn lockout_duration(attempts: u32) -> chrono::Duration {
+        let beyond_threshold = attempts.saturating_sub(LOCKOUT_THRESHOLD);
+        let secs = 30u32.checked_shl(beyond_threshold).unwrap_or(u32::MAX).min(3600);
+        chrono::Duration::seconds(secs as i64)
+    }
+
+    /// Starts the recovery ceremony: verifies the presented recovery code,
+    /// then begins a `recovery`-purpose passkey registration so the user can
+    /// re-enroll a fresh authenticator. Returns the registration options and
+    /// the recovered user (the finish step needs the user id to complete the
+    /// enrollment and invalidate the batch).
+    pub async fn begin_recovery(
+        &self,
+        cmd: VerifyRecoveryCodeCommand,
+    ) -> Result<(BeginResult, User), DomainError> {
+        let user = self.verify_recovery_code(cmd).await?;
+        let exclude_credentials = self.existing_credential_ids(user.id).await?;
+        let result = self
+            .begin_passkey_ceremony(user.id, &user.username, "recovery", exclude_credentials)
+            .await?;
+        Ok((result, user))
+    }
+
+    /// Completes the recovery ceremony: verifies the re-registration
+    /// attestation, then atomically enrolls the fresh passkey and invalidates
+    /// the user's entire recovery-code batch (every remaining code is consumed
+    /// in the same transaction). The user's recovery state is reset to a clean
+    /// slate so they can generate a fresh batch afterwards.
+    pub async fn finish_recovery(
+        &self,
+        cmd: FinishCommand,
+    ) -> Result<MessageResult, DomainError> {
+        let (session_id, user, session) = self
+            .get_user_and_session(&cmd.session_id, &cmd.username, "recovery")
+            .await?;
+
+        let passkey = self
+            .verify_registration_attestation(&user, session.data, cmd.credentials, "recovery", &cmd.client)
+            .await?;
+
+        // Atomic: enroll the passkey + consume every remaining code + reset
+        // recovery state in one transaction, so a code is never "half used".
+        self.auth_repo
+            .complete_recovery(user.id, &user.username, &passkey, cmd.name.as_deref())
+            .await?;
+        self.cleanup_session(session_id);
+
+        SecurityEvent::RecoveryCodeUsed {
+            user_id: user.id,
+            client: &cmd.client,
+        }
+        .emit();
+
+        Ok(MessageResult {
+            message: Cow::Borrowed("Account recovery completed successfully!"),
         })
     }
 

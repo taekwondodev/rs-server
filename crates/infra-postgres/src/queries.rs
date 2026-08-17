@@ -6,6 +6,7 @@ pub mod users {
         include_str!("sql/users_select_with_session_by_id.sql");
     pub const SELECT_ACTIVE_WITH_CREDENTIALS: &str =
         include_str!("sql/users_select_active_with_credentials.sql");
+    pub const SELECT_ACTIVE_BY_USERNAME: &str = include_str!("sql/users_select_active_by_username.sql");
     pub const LOCK_BY_ID: &str = include_str!("sql/users_lock_by_id.sql");
 }
 
@@ -23,4 +24,17 @@ pub mod webauthn_sessions {
     pub const INSERT: &str = include_str!("sql/webauthn_sessions_insert.sql");
     pub const DELETE_BY_ID: &str = include_str!("sql/webauthn_sessions_delete_by_id.sql");
     pub const DELETE_EXPIRED: &str = include_str!("sql/webauthn_sessions_delete_expired.sql");
+}
+
+pub mod recovery_codes {
+    pub const DELETE_BY_USER: &str = include_str!("sql/recovery_codes_delete_by_user.sql");
+    pub const INSERT: &str = include_str!("sql/recovery_codes_insert.sql");
+    pub const SELECT_BY_USER: &str = include_str!("sql/recovery_codes_select_by_user.sql");
+    pub const CLEAR_BY_USER: &str = include_str!("sql/recovery_codes_clear_by_user.sql");
+}
+
+pub mod recovery_state {
+    pub const UPSERT: &str = include_str!("sql/recovery_state_upsert.sql");
+    pub const SELECT_BY_USER: &str = include_str!("sql/recovery_state_select_by_user.sql");
+    pub const DELETE_BY_USER: &str = include_str!("sql/recovery_state_delete_by_user.sql");
 }

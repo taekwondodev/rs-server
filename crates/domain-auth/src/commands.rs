@@ -47,3 +47,23 @@ pub struct RemoveCredentialCommand {
     pub cred_id: Vec<u8>,
     pub client: ClientContext,
 }
+
+/// Generate-or-rotate recovery codes. Identity comes from the authenticated
+/// access-token claims (`user_id`), never the request body. The same command
+/// serves first generation and rotation; the service distinguishes them by
+/// whether a batch already exists / how recent the last rotation was.
+#[derive(Debug, Clone)]
+pub struct ManageRecoveryCodesCommand {
+    pub user_id: UserId,
+    pub client: ClientContext,
+}
+
+/// Present a recovery code to start the recovery ceremony. This is the one
+/// flow where identity is not a passkey or token — it is username + code, the
+/// only path back into an account whose every authenticator is lost.
+#[derive(Debug, Clone)]
+pub struct VerifyRecoveryCodeCommand {
+    pub username: Box<str>,
+    pub code: Box<str>,
+    pub client: ClientContext,
+}

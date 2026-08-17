@@ -5,8 +5,8 @@ use utoipa::ToSchema;
 use crate::{
     impl_validated_json_request,
     validation::{
-        validate_json_credentials, validate_optional_credential_name, validate_role, validate_text,
-        validate_username, Validatable,
+        validate_json_credentials, validate_optional_credential_name, validate_recovery_code,
+        validate_role, validate_text, validate_username, Validatable,
     },
 };
 
@@ -80,6 +80,39 @@ impl From<FinishRequest> for domain_auth::FinishCommand {
 
 impl_validated_json_request!(BeginRequest);
 impl_validated_json_request!(FinishRequest);
+
+/// Body of `POST /auth/recovery/begin`. This is the one flow where identity is
+/// NOT a passkey or a Bearer token: the user presents their username plus a
+/// single unused recovery code. `deny_unknown_fields` keeps the surface tight.
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+#[serde(deny_unknown_fields)]
+pub struct RecoveryVerifyRequest {
+    #[cfg_attr(feature = "openapi", schema(example = "john_doe", min_length = 3, max_length = 64))]
+    pub username: Box<str>,
+    #[cfg_attr(feature = "openapi", schema(example = "7WkP2s9fB4qXcD6e", min_length = 16, max_length = 16))]
+    pub recovery_code: Box<str>,
+}
+
+impl Validatable for RecoveryVerifyRequest {
+    fn validate(&self) -> Result<(), crate::error::HttpError> {
+        validate_username(&self.username)?;
+        validate_recovery_code(&self.recovery_code)?;
+        Ok(())
+    }
+}
+
+impl From<RecoveryVerifyRequest> for domain_auth::VerifyRecoveryCodeCommand {
+    fn from(req: RecoveryVerifyRequest) -> Self {
+        domain_auth::VerifyRecoveryCodeCommand {
+            username: req.username,
+            code: req.recovery_code,
+            client: domain_auth::ClientContext::default(),
+        }
+    }
+}
+
+impl_validated_json_request!(RecoveryVerifyRequest);
 
 /// Body of `POST /auth/credentials/finish`. Unlike `FinishRequest` there is
 /// no username: the authenticated user is derived from the Bearer token, so

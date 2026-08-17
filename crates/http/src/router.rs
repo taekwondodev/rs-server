@@ -26,6 +26,10 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
         handler::finish_add_credential,
         handler::list_credentials,
         handler::remove_credential,
+        handler::generate_recovery_codes,
+        handler::rotate_recovery_codes,
+        handler::begin_recovery,
+        handler::finish_recovery,
         handler::refresh,
         handler::logout,
     ),
@@ -34,8 +38,10 @@ use crate::{handler, http_trace_layer, middleware::metrics, state::AppState};
             crate::dto::BeginRequest,
             crate::dto::FinishRequest,
             crate::dto::FinishCredentialRequest,
+            crate::dto::RecoveryVerifyRequest,
             crate::dto::BeginResponse,
             crate::dto::CredentialResponse,
+            crate::dto::RecoveryCodesResponse,
             crate::dto::MessageResponse,
             crate::dto::TokenResponse,
             crate::error::ErrorResponse,
@@ -74,6 +80,10 @@ where
             "/auth/credentials/{cred_id}",
             delete(handler::remove_credential),
         )
+        .route("/auth/recovery/generate", post(handler::generate_recovery_codes))
+        .route("/auth/recovery/rotate", post(handler::rotate_recovery_codes))
+        .route("/auth/recovery/begin", post(handler::begin_recovery))
+        .route("/auth/recovery/finish", post(handler::finish_recovery))
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
         .with_state(state.clone())
@@ -102,6 +112,10 @@ where
             "/auth/credentials/{cred_id}",
             delete(handler::remove_credential),
         )
+        .route("/auth/recovery/generate", post(handler::generate_recovery_codes))
+        .route("/auth/recovery/rotate", post(handler::rotate_recovery_codes))
+        .route("/auth/recovery/begin", post(handler::begin_recovery))
+        .route("/auth/recovery/finish", post(handler::finish_recovery))
         .route("/auth/refresh", post(handler::refresh))
         .route("/auth/logout", post(handler::logout))
         .with_state(state.clone());

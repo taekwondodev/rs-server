@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use domain_auth::{Credential, User, WebAuthnSession};
+use domain_auth::{Credential, RecoveryCodeRecord, RecoveryLockout, RecoveryState, User, WebAuthnSession};
 use rs_repository_utils::{FromRow, RepositoryError};
 use uuid::Uuid;
 
@@ -108,6 +108,68 @@ impl From<CredentialRow> for Credential {
             name: row.name,
             created_at: row.created_at,
             last_used_at: row.last_used_at,
+        }
+    }
+}
+
+/// Shadow struct for a `recovery_codes` row.
+pub struct RecoveryCodeRow {
+    pub position: i32,
+    pub salt: Vec<u8>,
+    pub hash: Vec<u8>,
+    pub used: bool,
+}
+
+impl FromRow for RecoveryCodeRow {
+    fn from_row(row: &tokio_postgres::Row) -> Result<Self, RepositoryError> {
+        Ok(RecoveryCodeRow {
+            position: row.try_get("position")?,
+            salt: row.try_get("salt")?,
+            hash: row.try_get("hash")?,
+            used: row.try_get("used")?,
+        })
+    }
+}
+
+impl From<RecoveryCodeRow> for RecoveryCodeRecord {
+    fn from(row: RecoveryCodeRow) -> Self {
+        RecoveryCodeRecord {
+            position: row.position as u32,
+            salt: row.salt,
+            hash: row.hash,
+            used: row.used,
+        }
+    }
+}
+
+/// Shadow struct for the `recovery_state` row.
+pub struct RecoveryStateRow {
+    pub attempts: i32,
+    pub locked_until: Option<DateTime<Utc>>,
+    pub last_rotated_at: Option<DateTime<Utc>>,
+}
+
+impl FromRow for RecoveryStateRow {
+    fn from_row(row: &tokio_postgres::Row) -> Result<Self, RepositoryError> {
+        Ok(RecoveryStateRow {
+            attempts: row.try_get("attempts")?,
+            locked_until: row.try_get("locked_until")?,
+            last_rotated_at: row.try_get("last_rotated_at")?,
+        })
+    }
+}
+
+/// Maps a `recovery_state` row into the domain `RecoveryLockout` half of
+/// `RecoveryState`; `codes` is populated separately by the repository.
+impl From<RecoveryStateRow> for RecoveryState {
+    fn from(row: RecoveryStateRow) -> Self {
+        RecoveryState {
+            codes: Vec::new(),
+            lockout: RecoveryLockout {
+                attempts: row.attempts as u32,
+                locked_until: row.locked_until,
+            },
+            last_rotated_at: row.last_rotated_at,
         }
     }
 }
