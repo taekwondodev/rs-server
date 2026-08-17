@@ -1,6 +1,6 @@
 # Rust Backend Template
 
-A production-ready Rust backend template featuring Type-Driven Design, hexagonal architecture, and comprehensive observability. Built with Axum, PostgreSQL, and Redis.
+A production-ready Rust backend template featuring Type-Driven Design, hexagonal architecture, and comprehensive observability. Built with Axum, PostgreSQL, and Redis. Ships as a WebAuthn passkey + JWT authentication service.
 
 ## Template Philosophy
 
@@ -44,6 +44,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 - **Comprehensive Tests**: Service layer and domain type testing strategy
 
 ### Security
+- **WebAuthn Passkeys**: Passwordless authentication. A user holds **multiple credentials** managed via `/auth/credentials/*` — add, list, and remove behind a Bearer access token (identity from the token, never the request body). `excludeCredentials` prevents enrolling the same authenticator twice, and removing the last remaining credential is refused (409) to avoid a permanent lockout.
 - **CORS Configuration**: Flexible cross-origin setup for multiple environments
 - **Input Validation**: Max length, charset allowlist (`[a-zA-Z0-9_-]`), and `deny_unknown_fields` on all request DTOs — unknown JSON keys rejected with 400
 - **Body Size Limit**: 16 KB cap on all requests — prevents memory exhaustion from oversized payloads
