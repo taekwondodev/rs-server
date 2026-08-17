@@ -23,15 +23,14 @@ services:
     image: postgres:alpine
     container_name: server_postgres
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql
       - ./migrations:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test:
-        ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -41,7 +40,8 @@ services:
     container_name: passkey_redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-    command: [
+    command:
+      [
         "redis-server",
         "--requirepass",
         "${REDIS_PASSWORD}", # Richiedi password
@@ -50,13 +50,12 @@ services:
         "--maxmemory",
         "256mb",
         "--maxmemory-policy",
-        "allkeys-lru",
+        "allkeys-lru"
       ]
     volumes:
       - redis-data:/data
     healthcheck:
-      test:
-        ["CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      test: [ "CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG" ]
       interval: 5s
       timeout: 3s
       retries: 5

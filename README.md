@@ -45,6 +45,7 @@ This template embodies **Type-Driven Design (TyDD)** principles:
 
 ### Security
 - **WebAuthn Passkeys**: Passwordless authentication. A user holds **multiple credentials** managed via `/auth/credentials/*` — add, list, and remove behind a Bearer access token (identity from the token, never the request body). `excludeCredentials` prevents enrolling the same authenticator twice, and removing the last remaining credential is refused (409) to avoid a permanent lockout.
+- **Account Recovery Codes**: A user who loses every authenticator is not locked out. A batch of **10 high-entropy, single-use recovery codes** (Google/Microsoft/GitHub pattern) can be generated/rotated from `/auth/recovery/generate` and `/auth/recovery/rotate` (authenticated, 24h rotation cooldown). Codes are shown exactly once and stored only as **per-code salted hashes**. Recovery (`/auth/recovery/begin|finish`) presents username + a code — the one flow without a passkey or token — and re-enrolls a fresh passkey via a `recovery`-purpose ceremony; completion atomically invalidates the whole batch. An **anti-brute-force lockout** (5 failures, growing cooldown) lives in Postgres and is recovery-path only, so normal passkey login is unaffected.
 - **CORS Configuration**: Flexible cross-origin setup for multiple environments
 - **Input Validation**: Max length, charset allowlist (`[a-zA-Z0-9_-]`), and `deny_unknown_fields` on all request DTOs — unknown JSON keys rejected with 400
 - **Body Size Limit**: 16 KB cap on all requests — prevents memory exhaustion from oversized payloads
