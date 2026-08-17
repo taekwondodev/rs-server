@@ -1,10 +1,10 @@
 pub mod request;
 pub mod response;
 
-pub use request::{BeginRequest, FinishRequest};
+pub use request::{BeginRequest, FinishCredentialRequest, FinishRequest};
 pub use response::{
-    BeginResponse, HealthChecks, HealthResponse, HealthStatus, MessageResponse, ServiceHealth,
-    TokenResponse,
+    BeginResponse, CredentialResponse, HealthChecks, HealthResponse, HealthStatus, MessageResponse,
+    ServiceHealth, TokenResponse,
 };
 
 #[cfg(test)]

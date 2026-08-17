@@ -21,6 +21,16 @@ pub enum RegistrationOutcome {
     Resumed(User),
 }
 
+/// A passkey credential registered to a user. `id` is the raw WebAuthn
+/// credential id (binary); the http layer base64url-encodes it on the wire.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Credential {
+    pub id: Vec<u8>,
+    pub name: Option<Box<str>>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
+
 /// Plain domain entity — no row-mapping concerns. See
 /// `infra_postgres::WebAuthnSessionRow` for the persistence-layer shadow struct.
 #[derive(Debug, Clone, Serialize, Deserialize)]

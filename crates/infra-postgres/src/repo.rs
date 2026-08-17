@@ -4,14 +4,46 @@ use std::future::Future;
 use std::pin::Pin;
 
 use deadpool_postgres::Pool;
-use domain_auth::{AuthRepository, DomainError, RegistrationOutcome, User, UserId};
+use domain_auth::{
+    AuthRepository, Credential, DomainError, RegistrationOutcome, User, UserId,
+};
 use rs_repository_utils::{
     BaseRepository, CircuitBreaker, FromRow, HealthIndicator, RepositoryError, ServiceHealth,
 };
 use uuid::Uuid;
 use webauthn_rs::prelude::Passkey;
 
-use crate::{queries, row::{UserRow, WebAuthnSessionRow}};
+use crate::{queries, row::{CredentialRow, UserRow, WebAuthnSessionRow}};
+
+/// True when the error chain contains a Postgres unique-violation (23505) —
+/// e.g. re-registering the same authenticator despite excludeCredentials.
+/// Surfaces as a clean `Conflict` instead of a 500.
+fn is_unique_violation(e: &anyhow::Error) -> bool {
+    e.chain().any(|cause| {
+        cause
+            .downcast_ref::<tokio_postgres::Error>()
+            .is_some_and(|pg| pg.code() == Some(&tokio_postgres::error::SqlState::UNIQUE_VIOLATION))
+    })
+}
+
+/// Boundary classifier for credential writes: a unique violation is a
+/// duplicate passkey -> `Conflict`; everything else falls through to the
+/// generic classifier.
+fn classify_write_error(e: anyhow::Error) -> DomainError {
+    if is_unique_violation(&e) {
+        DomainError::Conflict("Credential already exists")
+    } else {
+        classify_repo_error(e)
+    }
+}
+
+/// Internal (never crosses a trait boundary) decision of a removal attempt;
+/// the public method converts it to `DomainError` right here at the boundary.
+enum RemoveOutcome {
+    Removed,
+    NotFound,
+    LastCredential,
+}
 
 /// Single boundary conversion point per public trait method (see module docs
 /// on `DomainError`): infra method bodies use `anyhow::Result` internally so
@@ -52,12 +84,13 @@ impl Repository {
         tx: &tokio_postgres::Transaction<'_>,
         user_id: UserId,
         passkey: &Passkey,
+        name: Option<&str>,
     ) -> anyhow::Result<()> {
         let passkey_json = serde_json::to_value(passkey)?;
         let user_id = user_id.into_inner();
         tx.execute(
             queries::credentials::INSERT,
-            &[&passkey.cred_id().as_slice(), &user_id, &passkey_json],
+            &[&passkey.cred_id().as_slice(), &user_id, &passkey_json, &name],
         )
         .await?;
         Ok(())
@@ -149,6 +182,42 @@ impl AuthRepository for Repository {
         found.ok_or(DomainError::NotFound("User or session not found"))
     }
 
+    async fn get_user_and_session_by_id(
+        &self,
+        session_id: Uuid,
+        user_id: UserId,
+        purpose: &str,
+    ) -> Result<(User, domain_auth::WebAuthnSession), DomainError> {
+        let found = self
+            .base
+            .execute_with_circuit_breaker("select", "users", |db| async move {
+                let client = db.get().await?;
+                let user_id = user_id.into_inner();
+
+                let row = client
+                    .query_opt(
+                        queries::users::SELECT_WITH_SESSION_BY_ID,
+                        &[&user_id, &session_id, &purpose],
+                    )
+                    .await?;
+
+                let mapped = match row {
+                    Some(row) => {
+                        let user: User = UserRow::from_row(&row)?.into();
+                        let session: domain_auth::WebAuthnSession =
+                            WebAuthnSessionRow::from_row(&row)?.into();
+                        Some((user, session))
+                    }
+                    None => None,
+                };
+                Ok::<_, anyhow::Error>(mapped)
+            })
+            .await
+            .map_err(classify_repo_error)?;
+
+        found.ok_or(DomainError::NotFound("User or session not found"))
+    }
+
     async fn get_active_user_with_credential(
         &self,
         username: &str,
@@ -183,6 +252,120 @@ impl AuthRepository for Repository {
             .map_err(classify_repo_error)?;
 
         found.ok_or(DomainError::Unauthorized("user or credentials not found"))
+    }
+
+    async fn list_credentials(&self, user_id: UserId) -> Result<Vec<Credential>, DomainError> {
+        self.base
+            .execute_with_circuit_breaker("select", "credentials", |db| async move {
+                let client = db.get().await?;
+                let user_id = user_id.into_inner();
+
+                let rows = client
+                    .query(queries::credentials::SELECT_BY_USER, &[&user_id])
+                    .await?;
+
+                let credentials = rows
+                    .iter()
+                    .map(|row| Ok::<_, anyhow::Error>(CredentialRow::from_row(row)?.into()))
+                    .collect::<anyhow::Result<Vec<_>>>()?;
+
+                Ok::<_, anyhow::Error>(credentials)
+            })
+            .await
+            .map_err(classify_repo_error)
+    }
+
+    async fn store_credential(
+        &self,
+        user_id: UserId,
+        passkey: &Passkey,
+        name: Option<&str>,
+    ) -> Result<(), DomainError> {
+        let result: anyhow::Result<u64> = self
+            .base
+            .execute_with_circuit_breaker("insert", "credentials", |db| async move {
+                let client = db.get().await?;
+                let passkey_json = serde_json::to_value(passkey)?;
+                let user_id = user_id.into_inner();
+
+                client
+                    .execute(
+                        queries::credentials::INSERT_OWNED_ACTIVE,
+                        &[&passkey.cred_id().as_slice(), &user_id, &passkey_json, &name],
+                    )
+                    .await
+                    .map_err(Into::into)
+            })
+            .await;
+
+        match result {
+            Err(e) => Err(classify_write_error(e)),
+            Ok(0) => Err(DomainError::NotFound("User not found or inactive")),
+            Ok(_) => Ok(()),
+        }
+    }
+
+    async fn remove_credential(
+        &self,
+        user_id: UserId,
+        cred_id: &[u8],
+    ) -> Result<(), DomainError> {
+        let outcome: anyhow::Result<RemoveOutcome> = self
+            .base
+            .with_transaction("delete", "credentials", |mut client| async move {
+                let tx = client.transaction().await?;
+
+                // Serialize per-user credential mutations: the last-credential
+                // guard's count and the delete must not interleave with a
+                // concurrent remove for the same user, or both could observe
+                // count>1 and delete down to zero.
+                let locked = tx
+                    .execute(queries::users::LOCK_BY_ID, &[&user_id.into_inner()])
+                    .await?;
+                if locked == 0 {
+                    return Ok(RemoveOutcome::NotFound);
+                }
+
+                // Ownership first: an id that was never the user's is a 404
+                // regardless of how many credentials they hold. Existence and
+                // count travel in one round trip.
+                let row = tx
+                    .query_one(
+                        queries::credentials::EXISTS_COUNT_BY_USER,
+                        &[&cred_id, &user_id.into_inner()],
+                    )
+                    .await?;
+                let owned: bool = row.get("owned");
+                if !owned {
+                    return Ok(RemoveOutcome::NotFound);
+                }
+
+                let remaining: i64 = row.get("remaining");
+                if remaining <= 1 {
+                    return Ok(RemoveOutcome::LastCredential);
+                }
+
+                let deleted = tx
+                    .execute(
+                        queries::credentials::DELETE_BY_ID_AND_USER,
+                        &[&cred_id, &user_id.into_inner()],
+                    )
+                    .await?;
+
+                debug_assert_eq!(deleted, 1, "ownership was just confirmed");
+
+                tx.commit().await?;
+                Ok(RemoveOutcome::Removed)
+            })
+            .await;
+
+        match outcome.map_err(classify_repo_error)? {
+            RemoveOutcome::Removed => Ok(()),
+            RemoveOutcome::NotFound => Err(DomainError::NotFound("Credential not found")),
+            RemoveOutcome::LastCredential => {
+                Err(DomainError::Conflict("Cannot remove the last credential"))
+            }
+        }
     }
 
     async fn create_webauthn_session(
@@ -256,31 +439,22 @@ impl AuthRepository for Repository {
         user_id: UserId,
         username: &str,
         passkey: &Passkey,
+        name: Option<&str>,
     ) -> Result<(), DomainError> {
-        let result: anyhow::Result<()> = async {
-            let mut client = self.base.pool().get().await?;
-            let tx = client.transaction().await?;
-
-            let inner = async {
-                Repository::create_credential(&tx, user_id, passkey).await?;
+        let result: anyhow::Result<()> = self
+            .base
+            .with_transaction("insert", "credentials", |mut client| async move {
+                let tx = client.transaction().await?;
+                Repository::create_credential(&tx, user_id, passkey, name).await?;
                 Repository::activate_user(&tx, username).await?;
+                tx.commit().await?;
                 Ok::<(), anyhow::Error>(())
-            }
+            })
             .await;
 
-            match inner {
-                Ok(()) => {
-                    tx.commit().await?;
-                    Ok(())
-                }
-                Err(e) => {
-                    let _ = tx.rollback().await;
-                    Err(e)
-                }
-            }
+        match result {
+            Err(e) => Err(classify_write_error(e)),
+            Ok(()) => Ok(()),
         }
-        .await;
-
-        result.map_err(classify_repo_error)
     }
 }

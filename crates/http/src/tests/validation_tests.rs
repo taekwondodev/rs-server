@@ -40,6 +40,51 @@ fn test_validate_text_only_whitespace() {
 }
 
 #[test]
+fn test_decode_credential_id_roundtrip() {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let raw: Vec<u8> = (0u8..=31).collect();
+    let encoded = URL_SAFE_NO_PAD.encode(&raw);
+    assert_eq!(decode_credential_id(&encoded).unwrap(), raw);
+}
+
+#[test]
+fn test_decode_credential_id_rejects_padded_standard_base64() {
+    // Standard base64 uses '+' and '/' which are illegal in URLs; the
+    // decoder must refuse them rather than silently misdecode.
+    assert!(decode_credential_id("AQIDBA==").is_err());
+}
+
+#[test]
+fn test_decode_credential_id_rejects_garbage() {
+    assert!(decode_credential_id("!!!not-base64!!!").is_err());
+    assert!(decode_credential_id("").is_err());
+}
+
+#[test]
+fn test_validate_credential_name_valid() {
+    assert!(validate_credential_name("iPhone 15").is_ok());
+    assert!(validate_credential_name("MacBook Pro (work)").is_ok());
+}
+
+#[test]
+fn test_validate_credential_name_rejects_empty() {
+    assert!(validate_credential_name("").is_err());
+    assert!(validate_credential_name("   ").is_err());
+}
+
+#[test]
+fn test_validate_credential_name_rejects_too_long() {
+    let long = "x".repeat(65);
+    assert!(validate_credential_name(&long).is_err());
+}
+
+#[test]
+fn test_validate_credential_name_accepts_max_length() {
+    let max = "x".repeat(64);
+    assert!(validate_credential_name(&max).is_ok());
+}
+
+#[test]
 fn test_validate_username_valid() {
     let result = validate_username("john_doe");
     assert!(result.is_ok());

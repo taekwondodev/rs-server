@@ -19,3 +19,7 @@ _Avoid_: chain, lineage
 **Reuse detection**:
 The check that a presented refresh token's `session:{jti}` still exists in Redis; a valid JWT with a missing session means replay after rotation, and triggers `revoke_family`.
 _Avoid_: replay check
+
+**Credential**:
+A single WebAuthn passkey bound to a user, stored as one row in `credentials` (keyed by the raw credential id). A user holds many credentials; the add/list/remove flows under `/auth/credentials/*` manage them, always scoped to the authenticated `UserId` from the token.
+_Avoid_: passkey (the marketing term), key, device

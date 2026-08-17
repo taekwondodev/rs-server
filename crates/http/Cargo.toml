@@ -26,6 +26,7 @@ prometheus = { workspace = true }
 axum-prometheus = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
+base64 = { workspace = true }
 utoipa = { workspace = true, optional = true }
 utoipa-axum = { workspace = true, optional = true }
 utoipa-swagger-ui = { workspace = true, optional = true }

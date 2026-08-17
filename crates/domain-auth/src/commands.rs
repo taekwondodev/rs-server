@@ -1,3 +1,7 @@
+use domain_shared::UserId;
+
+use crate::security_audit::ClientContext;
+
 /// Plain domain command, mapped from `http`'s `BeginRequest` (the axum
 /// extractor/wire type) before calling into `AuthService`. Reused for both
 /// `begin_register` and `begin_login` since both accept the same
@@ -15,5 +19,31 @@ pub struct FinishCommand {
     pub username: Box<str>,
     pub session_id: Box<str>,
     pub credentials: serde_json::Value,
-    pub client: crate::security_audit::ClientContext,
+    /// Optional human-readable label for the freshly registered passkey.
+    pub name: Option<Box<str>>,
+    pub client: ClientContext,
+}
+
+/// Add-credential ceremony, authenticated: identity comes from the access
+/// token claims, never from the request body.
+#[derive(Debug, Clone)]
+pub struct AddCredentialCommand {
+    pub user_id: UserId,
+    pub username: Box<str>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FinishAddCredentialCommand {
+    pub user_id: UserId,
+    pub session_id: Box<str>,
+    pub credentials: serde_json::Value,
+    pub name: Option<Box<str>>,
+    pub client: ClientContext,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoveCredentialCommand {
+    pub user_id: UserId,
+    pub cred_id: Vec<u8>,
+    pub client: ClientContext,
 }

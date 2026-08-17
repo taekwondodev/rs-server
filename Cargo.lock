@@ -1031,6 +1031,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "axum-prometheus",
+ "base64 0.22.1",
  "chrono",
  "domain-auth",
  "prometheus",
@@ -2117,7 +2118,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 [[package]]
 name = "rs-repository-utils"
 version = "0.2.0"
-source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#de9532ac6810aefacf849de13d677ddae2dc0ebf"
+source = "git+https://github.com/taekwondodev/rs-repository-utils?branch=main#6a3591c26221feb0a222c61fa2631fe1c1d27438"
 dependencies = [
  "deadpool-postgres",
  "failsafe",

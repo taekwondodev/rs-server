@@ -1,15 +1,21 @@
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Json};
 use axum_extra::extract::CookieJar;
-use domain_auth::{AuthRepository, ClientContext, DomainError, JwtService, RegistrationKind};
+use domain_auth::{
+    AccessTokenClaims, AuthRepository, ClientContext, DomainError, JwtService, RegistrationKind,
+};
 
 use crate::{
-    dto::{BeginRequest, BeginResponse, FinishRequest, HealthResponse, MessageResponse, TokenResponse},
+    dto::{
+        BeginRequest, BeginResponse, CredentialResponse, FinishCredentialRequest, FinishRequest,
+        HealthResponse, MessageResponse, TokenResponse,
+    },
     error::HttpError,
     middleware::metrics,
     state::AppState,
+    validation::decode_credential_id,
 };
 
 /// Begin user registration
@@ -158,6 +164,153 @@ where
     let updated_jar = jar.add(cookie);
 
     Ok((updated_jar, response.into()))
+}
+
+/// Begin adding a passkey to the authenticated user's account.
+///
+/// Starts a WebAuthn registration ceremony scoped to the account identified
+/// by the Bearer token. Existing credential ids are returned as
+/// `excludeCredentials`, so the same authenticator cannot be enrolled twice.
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/credentials/begin",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "Add-credential ceremony started successfully", body = BeginResponse),
+        (status = 400, description = "Invalid request data", body = crate::error::ErrorResponse),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn begin_add_credential<R, J>(
+    State(state): State<AppState<R, J>>,
+    claims: AccessTokenClaims,
+) -> Result<BeginResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let cmd = domain_auth::AddCredentialCommand {
+        user_id: claims.sub,
+        username: claims.username,
+    };
+    let response = state.auth_service.begin_add_credential(cmd).await;
+    metrics::track_credential_operation("add_begin", response.is_ok());
+    Ok(response?.into())
+}
+
+/// Finish adding a passkey to the authenticated user's account.
+///
+/// Completes the ceremony started by `begin_add_credential` and stores the
+/// new passkey (with an optional human-readable name) on the account.
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/credentials/finish",
+    tag = "Authentication",
+    request_body = FinishCredentialRequest,
+    responses(
+        (status = 200, description = "Credential added successfully!", body = MessageResponse),
+        (status = 400, description = "Invalid request data or credentials", body = crate::error::ErrorResponse),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 404, description = "User or session not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn finish_add_credential<R, J>(
+    State(state): State<AppState<R, J>>,
+    client: ClientContext,
+    claims: AccessTokenClaims,
+    request: FinishCredentialRequest,
+) -> Result<MessageResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let cmd = domain_auth::FinishAddCredentialCommand {
+        user_id: claims.sub,
+        session_id: request.session_id,
+        credentials: request.credentials,
+        name: request.name,
+        client,
+    };
+
+    let response = state.auth_service.finish_add_credential(cmd).await;
+    metrics::track_credential_operation("add_finish", response.is_ok());
+    Ok(response?.into())
+}
+
+/// List the authenticated user's passkeys.
+///
+/// Returns the credential ids (base64url-encoded), optional names, and
+/// timestamps. No identifier of any other user is ever visible.
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/auth/credentials",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "List of passkeys for the authenticated user", body = Vec<CredentialResponse>),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn list_credentials<R, J>(
+    State(state): State<AppState<R, J>>,
+    claims: AccessTokenClaims,
+) -> Result<Json<Vec<CredentialResponse>>, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let response = state.auth_service.list_credentials(claims.sub).await;
+    metrics::track_credential_operation("list", response.is_ok());
+    Ok(Json(response?.into_iter().map(CredentialResponse::from).collect()))
+}
+
+/// Remove one of the authenticated user's passkeys.
+///
+/// Refuses to remove the last remaining credential — that would lock the
+/// account out permanently (login needs a credential, re-registration is
+/// only possible before activation).
+#[cfg_attr(feature = "openapi", utoipa::path(
+    delete,
+    path = "/auth/credentials/{cred_id}",
+    tag = "Authentication",
+    params(
+        ("cred_id" = String, Path, description = "Base64url-encoded credential id"),
+    ),
+    responses(
+        (status = 200, description = "Credential removed successfully!", body = MessageResponse),
+        (status = 400, description = "Invalid credential id", body = crate::error::ErrorResponse),
+        (status = 401, description = "Authentication failed", body = crate::error::ErrorResponse),
+        (status = 404, description = "Credential not found", body = crate::error::ErrorResponse),
+        (status = 409, description = "Cannot remove the last credential", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+        (status = 503, description = "Service temporarily unavailable", body = crate::error::ErrorResponse)
+    )
+))]
+pub async fn remove_credential<R, J>(
+    State(state): State<AppState<R, J>>,
+    client: ClientContext,
+    claims: AccessTokenClaims,
+    Path(encoded_id): Path<String>,
+) -> Result<MessageResponse, HttpError>
+where
+    R: AuthRepository + 'static,
+    J: JwtService + 'static,
+{
+    let cred_id = decode_credential_id(&encoded_id)?;
+    let cmd = domain_auth::RemoveCredentialCommand {
+        user_id: claims.sub,
+        cred_id,
+        client,
+    };
+
+    let response = state.auth_service.remove_credential(cmd).await;
+    metrics::track_credential_operation("remove", response.is_ok());
+    Ok(response?.into())
 }
 
 /// Refresh access token

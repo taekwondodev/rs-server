@@ -51,6 +51,15 @@ pub static HEALTH_CHECKS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+pub static CREDENTIAL_OPERATIONS: LazyLock<prometheus::CounterVec> = LazyLock::new(|| {
+    prometheus::register_counter_vec!(
+        "credential_operations_total",
+        "Total number of passkey management operations (add_begin, add_finish, list, remove)",
+        &["operation", "status"]
+    )
+    .unwrap()
+});
+
 /// Get Prometheus metrics
 ///
 /// Returns all metrics in Prometheus format for scraping by monitoring systems
@@ -99,4 +108,9 @@ pub fn track_token_operation(operation: &str, success: bool) {
 pub fn track_health_check(success: bool) {
     let status = if success { "healthy" } else { "unhealthy" };
     HEALTH_CHECKS.with_label_values(&[status]).inc();
+}
+
+pub fn track_credential_operation(operation: &str, success: bool) {
+    let status = if success { "success" } else { "failure" };
+    CREDENTIAL_OPERATIONS.with_label_values(&[operation, status]).inc();
 }

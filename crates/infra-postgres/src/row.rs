@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use domain_auth::{User, WebAuthnSession};
+use domain_auth::{Credential, User, WebAuthnSession};
 use rs_repository_utils::{FromRow, RepositoryError};
 use uuid::Uuid;
 
@@ -76,6 +76,38 @@ impl From<WebAuthnSessionRow> for WebAuthnSession {
             purpose: row.purpose,
             created_at: row.created_at,
             expires_at: row.expires_at,
+        }
+    }
+}
+
+/// Shadow struct for the `credentials` row shape (management-list projection).
+pub struct CredentialRow {
+    pub id: Vec<u8>,
+    pub name: Option<Box<str>>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
+
+impl FromRow for CredentialRow {
+    fn from_row(row: &tokio_postgres::Row) -> Result<Self, RepositoryError> {
+        Ok(CredentialRow {
+            id: row.try_get("id")?,
+            name: row
+                .try_get::<_, Option<String>>("name")?
+                .map(String::into_boxed_str),
+            created_at: row.try_get("created_at")?,
+            last_used_at: row.try_get("last_used_at")?,
+        })
+    }
+}
+
+impl From<CredentialRow> for Credential {
+    fn from(row: CredentialRow) -> Self {
+        Credential {
+            id: row.id,
+            name: row.name,
+            created_at: row.created_at,
+            last_used_at: row.last_used_at,
         }
     }
 }
